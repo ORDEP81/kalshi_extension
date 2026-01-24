@@ -1,0 +1,36 @@
+{
+  "name": "kalshi-american-odds",
+  "version": "1.0.0",
+  "description": "Chrome and Firefox extension for displaying American odds on Kalshi",
+  "scripts": {
+    "build": "echo 'No build process needed - extension runs directly from source'",
+    "build:firefox": "./scripts/build-firefox.sh",
+    "lint": "echo 'Add linting tools as needed'",
+    "test": "echo 'Add testing framework as needed'"
+  },
+  "keywords": [
+    "chrome-extension",
+    "firefox-addon",
+    "kalshi",
+    "american-odds",
+    "betting",
+    "trading"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "jsdom": "^27.4.0",
+    "web-ext": "^7.8.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/kalshi-american-odds"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/kalshi-american-odds/issues"
+  },
+  "homepage": "https://github.com/yourusername/kalshi-american-odds#readme"
+}

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+</head>
+<body>
+    <h1>Kalshi American Odds - Icon Generator</h1>
+    <p>This page generates PNG icons for the extension. Open in browser and click the button.</p>
+    
+    <button onclick="generateIcons()">Generate PNG Icons</button>
+    <div id="output"></div>
+    
+    <script>
+        function generateIcons() {
+            const sizes = [16, 32, 48, 128];
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Generated Icons:</h2>';
+            
+            sizes.forEach(size => {
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                
+                // Draw background
+                ctx.fillStyle = '#2563eb';
+                ctx.fillRect(0, 0, size, size);
+                
+                // Draw rounded corners
+                ctx.globalCompositeOperation = 'destination-in';
+                ctx.beginPath();
+                ctx.roundRect(0, 0, size, size, size * 0.1);
+                ctx.fill();
+                ctx.globalCompositeOperation = 'source-over';
+                
+                // Draw text
+                ctx.fillStyle = 'white';
+                ctx.font = `bold ${size * 0.4}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('AO', size / 2, size / 2);
+                
+                // Create download link
+                const link = document.createElement('a');
+                link.download = `icon${size}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.textContent = `Download icon${size}.png`;
+                link.style.display = 'block';
+                link.style.margin = '5px 0';
+                
+                output.appendChild(link);
+                
+                // Also display the icon
+                const img = document.createElement('img');
+                img.src = canvas.toDataURL('image/png');
+                img.style.margin = '5px';
+                img.style.border = '1px solid #ccc';
+                output.appendChild(img);
+            });
+        }
+    </script>
+</body>
+</html>

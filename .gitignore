@@ -1,0 +1,262 @@
+# Kalshi American Odds Extension - .gitignore
+
+# ============================================================================
+# NODE.JS / NPM
+# ============================================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+.pnpm-debug.log*
+
+# ============================================================================
+# BROWSER EXTENSION BUILDS & PACKAGING
+# ============================================================================
+# Extension build outputs
+dist/
+build/
+web-ext-artifacts/
+*.zip
+*.crx
+*.xpi
+
+# Firefox specific builds
+firefox-build/
+addon-build/
+
+# Chrome Web Store packages
+chrome-store-package/
+*.pem
+
+# ============================================================================
+# DEVELOPMENT & TESTING
+# ============================================================================
+# Test outputs and coverage
+coverage/
+.nyc_output/
+test-results/
+*.lcov
+
+# Development logs
+*.log
+logs/
+debug.log
+error.log
+
+# Temporary test files
+temp/
+tmp/
+.tmp/
+
+# ============================================================================
+# EDITOR & IDE FILES
+# ============================================================================
+# Visual Studio Code
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+.vscode/tasks.json
+!.vscode/recommended-extensions.json
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ============================================================================
+# OPERATING SYSTEM FILES
+# ============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================================================
+# SECURITY & SENSITIVE FILES
+# ============================================================================
+# API keys and secrets
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+secrets.json
+config/secrets.js
+
+# Private keys
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Authentication tokens
+auth-tokens.json
+.auth/
+
+# ============================================================================
+# DOCUMENTATION & ASSETS
+# ============================================================================
+# Generated documentation
+docs/generated/
+api-docs/
+
+# Large media files (keep smaller ones in repo)
+*.mov
+*.mp4
+*.avi
+*.mkv
+*.webm
+*.flv
+
+# High-resolution source files
+*.psd
+*.ai
+*.sketch
+*.fig
+
+# ============================================================================
+# EXTENSION SPECIFIC
+# ============================================================================
+# Extension development artifacts
+manifest-v2.json
+manifest-firefox.json
+web-ext-config.js
+
+# Store submission materials
+store-assets/
+submission-screenshots/
+store-descriptions/
+
+# Extension analytics/metrics (if any)
+analytics/
+metrics/
+
+# User data from testing
+user-preferences.json
+test-settings.json
+
+# ============================================================================
+# BACKUP & ARCHIVE FILES
+# ============================================================================
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+*.swp
+*.tmp
+
+# Archive files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# ============================================================================
+# KIRO SPECIFIC (Development Tool)
+# ============================================================================
+# Keep .kiro/specs/ for project documentation
+# But ignore any generated or temporary Kiro files
+.kiro/cache/
+.kiro/temp/
+.kiro/logs/
+
+# ============================================================================
+# CUSTOM PROJECT EXCLUSIONS
+# ============================================================================
+# Task completion summaries (these are numerous and auto-generated)
+TASK-*-COMPLETION-SUMMARY.md
+TASK-*-SUMMARY.md
+
+# Test files that are numerous and auto-generated
+test-*.js
+test-*.html
+verify-*.js
+audit-*.js
+
+# Demo and helper files
+demo-*.js
+helper-*.js
+helper-*.html
+helper-*.css
+
+# ============================================================================
+# KEEP THESE FILES (Explicit inclusions)
+# ============================================================================
+# Force include important files that might be ignored by patterns above
+!README.md
+!LICENSE
+!manifest.json
+!package.json
+!.gitignore
+!.kiro/specs/
+
+# Keep essential extension files
+!content/
+!popup/
+!background/
+!icons/
+!scripts/
+
+# Keep documentation
+!DEVELOPMENT.md
+!FIREFOX_BUILD_NOTES.md
+!screenshots/README.md
+
+# ============================================================================
+# COMMENTS FOR FUTURE REFERENCE
+# ============================================================================
+# This .gitignore is designed for a Chrome/Firefox extension project
+# 
+# Key decisions made:
+# 1. Excluded numerous auto-generated test files to keep repo clean
+# 2. Kept core extension files and documentation
+# 3. Excluded build artifacts and sensitive files
+# 4. Included OS-specific ignores for cross-platform development
+# 
+# To modify this file:
+# - Add new patterns above the appropriate section
+# - Use ! prefix to force-include files that would otherwise be ignored
+# - Test with: git check-ignore -v <filename>
