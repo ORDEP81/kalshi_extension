@@ -565,6 +565,10 @@ function validateSettings(settingsToValidate) {
         });
         return false;
       }
+    } else if (key === 'showSides' || key === 'rounding') {
+      // Ignore legacy settings that are no longer used
+      KalshiLogger.debug('CONFIGURATION', `Ignoring legacy setting: ${key}`);
+      continue;
     } else if (validSettingValues[key] && !validSettingValues[key].includes(value)) {
       KalshiLogger.warn('CONFIGURATION', `Invalid ${key} value: not in allowed values`, {
         key,
@@ -5658,8 +5662,6 @@ function probabilityToAmericanOdds(p) {
   
   // Apply integer rounding (no rounding options)
   return Math.round(odds);
-  
-  return Math.round(odds); // Default to integer rounding
 }
 
 /**

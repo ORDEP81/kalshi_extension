@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reset Kalshi Extension Settings</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; }
+        .primary { background-color: #007bff; color: white; border: none; border-radius: 3px; }
+        .danger { background-color: #dc3545; color: white; border: none; border-radius: 3px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Reset Kalshi American Odds Extension Settings</h1>
+    
+    <div class="section warning">
+        <h3>⚠️ Before You Start</h3>
+        <p>If American odds are not showing up, this tool can help reset your extension settings to fix the issue.</p>
+        <p><strong>Instructions:</strong></p>
+        <ol>
+            <li>Make sure you're on a Kalshi page (kalshi.com)</li>
+            <li>Open this page in the same browser where the extension is installed</li>
+            <li>Follow the steps below</li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h3>Step 1: Check Current Settings</h3>
+        <button class="primary" onclick="checkCurrentSettings()">Check Current Settings</button>
+        <div id="current-settings"></div>
+    </div>
+
+    <div class="section">
+        <h3>Step 2: Reset to Default Settings</h3>
+        <button class="danger" onclick="resetSettings()">Reset All Settings</button>
+        <div id="reset-result"></div>
+    </div>
+
+    <div class="section">
+        <h3>Step 3: Verify Extension is Working</h3>
+        <p>After resetting settings:</p>
+        <ol>
+            <li>Go to <a href="https://kalshi.com" target="_blank">kalshi.com</a></li>
+            <li>Look for markets with percentages (like "65%")</li>
+            <li>You should see American odds next to them (like "65% (-186)")</li>
+            <li>If not working, try refreshing the page or reloading the extension</li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h3>Test Probabilities (for testing)</h3>
+        <p>Market A: <span style="font-weight: bold;">65%</span></p>
+        <p>Market B: <span style="font-weight: bold;">35%</span></p>
+        <p>Market C: <span style="font-weight: bold;">$0.75</span></p>
+        <p>Market D: <span style="font-weight: bold;">$0.25</span></p>
+        <p><em>If the extension is working, you should see American odds next to these values.</em></p>
+    </div>
+
+    <script>
+        function showMessage(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="section ${type}" style="margin-top: 10px;"><pre>${message}</pre></div>`;
+        }
+
+        async function checkCurrentSettings() {
+            try {
+                if (typeof chrome === 'undefined' || !chrome.storage) {
+                    showMessage('current-settings', 'Error: Chrome extension API not available. Make sure you\'re running this in a browser with the extension installed.', 'error');
+                    return;
+                }
+
+                const settings = await chrome.storage.sync.get(null);
+                const settingsText = JSON.stringify(settings, null, 2);
+                
+                if (Object.keys(settings).length === 0) {
+                    showMessage('current-settings', 'No settings found in storage. This might be the issue!', 'warning');
+                } else {
+                    showMessage('current-settings', `Current settings:\n${settingsText}`, 'success');
+                }
+            } catch (error) {
+                showMessage('current-settings', `Error checking settings: ${error.message}`, 'error');
+            }
+        }
+
+        async function resetSettings() {
+            try {
+                if (typeof chrome === 'undefined' || !chrome.storage) {
+                    showMessage('reset-result', 'Error: Chrome extension API not available.', 'error');
+                    return;
+                }
+
+                // Clear all existing settings
+                await chrome.storage.sync.clear();
+                
+                // Set correct default settings
+                const defaultSettings = {
+                    displayMode: 'rawAmerican',
+                    fallbackEstimateEnabled: false,
+                    helperPanelEnabled: true
+                };
+                
+                await chrome.storage.sync.set(defaultSettings);
+                
+                const resultText = `Settings reset successfully!\n\nNew settings:\n${JSON.stringify(defaultSettings, null, 2)}\n\nPlease refresh any Kalshi pages to see the changes.`;
+                showMessage('reset-result', resultText, 'success');
+                
+            } catch (error) {
+                showMessage('reset-result', `Error resetting settings: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-check settings on page load
+        window.addEventListener('load', () => {
+            setTimeout(checkCurrentSettings, 500);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Kalshi Extension Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: white; }
+        .test-market { margin: 20px 0; padding: 15px; border: 1px solid #333; background: #2a2a2a; }
+        .percentage { font-weight: bold; color: #4CAF50; font-size: 18px; }
+        .price { font-weight: bold; color: #2196F3; font-size: 18px; }
+        .instructions { background: #333; padding: 15px; margin: 20px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Kalshi Extension Test Page</h1>
+    
+    <div class="instructions">
+        <h3>Instructions:</h3>
+        <ol>
+            <li>Make sure you're on kalshi.com domain (this test won't work on localhost)</li>
+            <li>Open browser console (F12)</li>
+            <li>Copy and paste the debug script from debug-kalshi-extension.js</li>
+            <li>Look for American odds next to the percentages below</li>
+        </ol>
+    </div>
+
+    <div class="test-market">
+        <h3>Market 1: New England</h3>
+        <p>Probability: <span class="percentage">74%</span></p>
+        <p>Expected odds: -285</p>
+    </div>
+
+    <div class="test-market">
+        <h3>Market 2: Denver</h3>
+        <p>Probability: <span class="percentage">27%</span></p>
+        <p>Expected odds: +270</p>
+    </div>
+
+    <div class="test-market">
+        <h3>Market 3: Spread Bet</h3>
+        <p>Probability: <span class="percentage">47%</span></p>
+        <p>Expected odds: +113</p>
+    </div>
+
+    <div class="test-market">
+        <h3>Market 4: Over/Under</h3>
+        <p>Probability: <span class="percentage">40%</span></p>
+        <p>Expected odds: +150</p>
+    </div>
+
+    <div class="test-market">
+        <h3>Market 5: Price Format</h3>
+        <p>Price: <span class="price">$0.74</span></p>
+        <p>Expected odds: -285</p>
+    </div>
+
+    <div class="instructions">
+        <h3>What Should Happen:</h3>
+        <p>If the extension is working, you should see American odds appear next to each percentage/price, like:</p>
+        <ul>
+            <li>74% <strong>(-285)</strong></li>
+            <li>27% <strong>(+270)</strong></li>
+            <li>47% <strong>(+113)</strong></li>
+            <li>40% <strong>(+150)</strong></li>
+            <li>$0.74 <strong>(-285)</strong></li>
+        </ul>
+    </div>
+
+    <script>
+        // Simple test to check if extension is loaded
+        setTimeout(() => {
+            console.log('Test page loaded. Extension should process this page now.');
+            
+            if (typeof window.KalshiLogger !== 'undefined') {
+                console.log('✅ Extension detected on test page');
+            } else {
+                console.log('❌ Extension not detected on test page');
+                console.log('Make sure you are on kalshi.com domain for the extension to work');
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

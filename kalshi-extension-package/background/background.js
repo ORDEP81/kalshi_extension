@@ -15,9 +15,8 @@ chrome.runtime.onInstalled.addListener((details) => {
     // Set default settings on first install
     const defaultSettings = {
       displayMode: 'rawAmerican',
-      showSides: 'yesAndNo',
-      rounding: 'integer',
-      fallbackEstimateEnabled: false
+      fallbackEstimateEnabled: false,
+      helperPanelEnabled: true
     };
     
     chrome.storage.sync.set(defaultSettings).then(() => {
@@ -25,6 +24,9 @@ chrome.runtime.onInstalled.addListener((details) => {
     }).catch((error) => {
       console.error('Failed to initialize default settings:', error);
     });
+  } else if (details.reason === 'update') {
+    // Clean up legacy settings on update
+    migrateLegacySettings();
   }
 });
 
@@ -66,9 +68,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
  */
 function validateSettings(settings) {
   const validValues = {
-    displayMode: ['percent', 'rawAmerican', 'afterFeeAmerican', 'cycle'],
-    showSides: ['yesOnly', 'yesAndNo'],
-    rounding: ['integer', 'cents']
+    displayMode: ['percent', 'rawAmerican', 'afterFeeAmerican']
   };
 
   if (!settings || typeof settings !== 'object') {
@@ -76,11 +76,15 @@ function validateSettings(settings) {
   }
 
   for (const [key, value] of Object.entries(settings)) {
-    if (key === 'fallbackEstimateEnabled') {
+    if (key === 'fallbackEstimateEnabled' || key === 'helperPanelEnabled') {
       if (typeof value !== 'boolean') {
         console.error(`Invalid ${key} value:`, value);
         return false;
       }
+    } else if (key === 'showSides' || key === 'rounding') {
+      // Ignore legacy settings that are no longer used
+      console.log(`Ignoring legacy setting: ${key}`);
+      continue;
     } else if (validValues[key] && !validValues[key].includes(value)) {
       console.error(`Invalid ${key} value:`, value);
       return false;
@@ -88,6 +92,50 @@ function validateSettings(settings) {
   }
 
   return true;
+}
+
+/**
+ * Migrate legacy settings to current format
+ */
+async function migrateLegacySettings() {
+  try {
+    console.log('Migrating legacy settings...');
+    
+    const allSettings = await chrome.storage.sync.get(null);
+    console.log('Current settings before migration:', allSettings);
+    
+    // Remove legacy settings
+    const legacyKeys = ['showSides', 'rounding'];
+    const keysToRemove = legacyKeys.filter(key => key in allSettings);
+    
+    if (keysToRemove.length > 0) {
+      await chrome.storage.sync.remove(keysToRemove);
+      console.log('Removed legacy settings:', keysToRemove);
+    }
+    
+    // Ensure all required settings exist with defaults
+    const requiredSettings = {
+      displayMode: 'rawAmerican',
+      fallbackEstimateEnabled: false,
+      helperPanelEnabled: true
+    };
+    
+    const updatedSettings = {};
+    for (const [key, defaultValue] of Object.entries(requiredSettings)) {
+      if (!(key in allSettings)) {
+        updatedSettings[key] = defaultValue;
+      }
+    }
+    
+    if (Object.keys(updatedSettings).length > 0) {
+      await chrome.storage.sync.set(updatedSettings);
+      console.log('Added missing settings:', updatedSettings);
+    }
+    
+    console.log('Settings migration completed');
+  } catch (error) {
+    console.error('Failed to migrate legacy settings:', error);
+  }
 }
 
 /**

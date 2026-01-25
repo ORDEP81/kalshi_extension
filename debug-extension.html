@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Kalshi Extension</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; background: #f9f9f9; }
+        .probability { font-weight: bold; color: #333; }
+        pre { background: #eee; padding: 10px; overflow-x: auto; }
+        button { padding: 10px 15px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Debug Kalshi American Odds Extension</h1>
+    
+    <div class="debug-section">
+        <h3>Test Probabilities</h3>
+        <p>Market A: <span class="probability">65%</span></p>
+        <p>Market B: <span class="probability">35%</span></p>
+        <p>Market C: <span class="probability">$0.75</span></p>
+        <p>Market D: <span class="probability">$0.25</span></p>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Debug Actions</h3>
+        <button onclick="checkExtensionLoaded()">Check Extension Loaded</button>
+        <button onclick="checkSettings()">Check Settings</button>
+        <button onclick="clearSettings()">Clear All Settings</button>
+        <button onclick="setRawAmericanMode()">Force Raw American Mode</button>
+        <button onclick="checkConsole()">Check Console Logs</button>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Debug Output</h3>
+        <pre id="debug-output">Click buttons above to debug...</pre>
+    </div>
+
+    <script>
+        function log(message) {
+            const output = document.getElementById('debug-output');
+            output.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+        }
+
+        function checkExtensionLoaded() {
+            log('Checking if extension is loaded...');
+            
+            // Check if extension content script is loaded
+            if (window.KalshiLogger) {
+                log('✅ Extension content script is loaded (KalshiLogger found)');
+            } else {
+                log('❌ Extension content script not loaded (KalshiLogger not found)');
+            }
+            
+            // Check for extension-added elements
+            const oddsElements = document.querySelectorAll('[data-kalshi-ao-odds]');
+            log(`Found ${oddsElements.length} odds elements on page`);
+            
+            // Check URL
+            log(`Current URL: ${window.location.href}`);
+            log(`Hostname: ${window.location.hostname}`);
+        }
+
+        function checkSettings() {
+            log('Checking extension settings...');
+            
+            if (typeof chrome !== 'undefined' && chrome.storage) {
+                chrome.storage.sync.get(null, (result) => {
+                    log('Current settings in storage:');
+                    log(JSON.stringify(result, null, 2));
+                });
+            } else {
+                log('❌ Chrome storage API not available');
+            }
+        }
+
+        function clearSettings() {
+            log('Clearing all extension settings...');
+            
+            if (typeof chrome !== 'undefined' && chrome.storage) {
+                chrome.storage.sync.clear(() => {
+                    log('✅ All settings cleared');
+                    log('Please reload the page and try again');
+                });
+            } else {
+                log('❌ Chrome storage API not available');
+            }
+        }
+
+        function setRawAmericanMode() {
+            log('Setting display mode to rawAmerican...');
+            
+            if (typeof chrome !== 'undefined' && chrome.storage) {
+                const settings = {
+                    displayMode: 'rawAmerican',
+                    fallbackEstimateEnabled: false,
+                    helperPanelEnabled: true
+                };
+                
+                chrome.storage.sync.set(settings, () => {
+                    log('✅ Settings updated:');
+                    log(JSON.stringify(settings, null, 2));
+                    log('Please reload the page to see changes');
+                });
+            } else {
+                log('❌ Chrome storage API not available');
+            }
+        }
+
+        function checkConsole() {
+            log('Check the browser console (F12) for extension logs');
+            log('Look for messages starting with "Kalshi American Odds"');
+            
+            // Try to trigger extension processing
+            if (window.KalshiLogger) {
+                log('Attempting to trigger extension processing...');
+                // This might not work depending on extension implementation
+            }
+        }
+
+        // Auto-check on load
+        setTimeout(() => {
+            checkExtensionLoaded();
+        }, 1000);
+    </script>
+</body>
+</html>
+</html>

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Final Kalshi Extension Debug Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background: #1a1a1a; 
+            color: white; 
+            line-height: 1.6;
+        }
+        .section { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #333; 
+            background: #2a2a2a; 
+            border-radius: 5px;
+        }
+        .test-percentage { 
+            font-weight: bold; 
+            color: #4CAF50; 
+            font-size: 18px; 
+            margin: 10px 0;
+        }
+        .test-price { 
+            font-weight: bold; 
+            color: #2196F3; 
+            font-size: 18px; 
+            margin: 10px 0;
+        }
+        .status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 3px;
+        }
+        .success { background: #2e7d32; }
+        .warning { background: #f57c00; }
+        .error { background: #d32f2f; }
+        button { 
+            padding: 10px 20px; 
+            margin: 5px; 
+            background: #1976d2; 
+            color: white; 
+            border: none; 
+            border-radius: 3px; 
+            cursor: pointer;
+        }
+        button:hover { background: #1565c0; }
+        pre { 
+            background: #333; 
+            padding: 10px; 
+            border-radius: 3px; 
+            overflow-x: auto; 
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Final Kalshi Extension Debug Test</h1>
+    
+    <div class="section">
+        <h3>⚠️ IMPORTANT INSTRUCTIONS</h3>
+        <ol>
+            <li><strong>This page must be accessed via kalshi.com domain</strong> (not localhost or file://)</li>
+            <li>Make sure the Kalshi American Odds extension is installed and enabled</li>
+            <li>Click the buttons below to run diagnostics</li>
+            <li>Look for American odds to appear next to the test percentages below</li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h3>🎯 Test Percentages (Should Show American Odds)</h3>
+        <div class="test-percentage">74%</div>
+        <div class="test-percentage">27%</div>
+        <div class="test-percentage">47%</div>
+        <div class="test-percentage">40%</div>
+        <div class="test-percentage">99%</div>
+        <div class="test-percentage">50%</div>
+        <div class="test-percentage">25%</div>
+        <div class="test-percentage">75%</div>
+    </div>
+
+    <div class="section">
+        <h3>💰 Test Prices (Should Show American Odds)</h3>
+        <div class="test-price">$0.74</div>
+        <div class="test-price">$0.27</div>
+        <div class="test-price">$0.47</div>
+        <div class="test-price">$0.40</div>
+        <div class="test-price">$0.99</div>
+    </div>
+
+    <div class="section">
+        <h3>🔧 Diagnostic Tools</h3>
+        <button onclick="runFullDiagnostic()">Run Full Diagnostic</button>
+        <button onclick="resetExtensionSettings()">Reset Extension Settings</button>
+        <button onclick="forceProcessPage()">Force Process Page</button>
+        <button onclick="checkPatterns()">Check Pattern Matching</button>
+    </div>
+
+    <div class="section">
+        <h3>📊 Diagnostic Results</h3>
+        <div id="diagnostic-results">Click "Run Full Diagnostic" to start...</div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('diagnostic-results');
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+            console.log(message.replace(/<[^>]*>/g, ''));
+        }
+
+        function clearResults() {
+            document.getElementById('diagnostic-results').innerHTML = '';
+        }
+
+        async function runFullDiagnostic() {
+            clearResults();
+            log('🔍 Starting comprehensive diagnostic...', 'info');
+
+            // Check 1: Basic environment
+            log(`<strong>1. Environment Check:</strong><br>
+                URL: ${window.location.href}<br>
+                Domain: ${window.location.hostname}<br>
+                Chrome API: ${typeof chrome !== 'undefined' ? '✅' : '❌'}<br>
+                Extension loaded: ${typeof window.KalshiLogger !== 'undefined' ? '✅' : '❌'}`, 
+                typeof window.KalshiLogger !== 'undefined' ? 'success' : 'error');
+
+            // Check 2: Domain validation
+            const isKalshiDomain = window.location.hostname.includes('kalshi.com');
+            log(`<strong>2. Domain Check:</strong><br>
+                On Kalshi domain: ${isKalshiDomain ? '✅' : '❌'}<br>
+                ${!isKalshiDomain ? '<strong>⚠️ Extension only works on kalshi.com domain!</strong>' : ''}`, 
+                isKalshiDomain ? 'success' : 'error');
+
+            // Check 3: Settings
+            if (typeof chrome !== 'undefined' && chrome.storage) {
+                try {
+                    const settings = await chrome.storage.sync.get(null);
+                    const hasSettings = Object.keys(settings).length > 0;
+                    log(`<strong>3. Settings Check:</strong><br>
+                        Settings found: ${hasSettings ? '✅' : '❌'}<br>
+                        Display mode: ${settings.displayMode || 'NOT SET'}<br>
+                        ${!hasSettings ? '<strong>⚠️ No settings found - this is likely the problem!</strong>' : ''}
+                        ${settings.displayMode !== 'rawAmerican' ? '<strong>⚠️ Display mode should be "rawAmerican"</strong>' : ''}`, 
+                        hasSettings && settings.displayMode === 'rawAmerican' ? 'success' : 'warning');
+                } catch (error) {
+                    log(`<strong>3. Settings Check:</strong><br>❌ Error reading settings: ${error.message}`, 'error');
+                }
+            } else {
+                log('<strong>3. Settings Check:</strong><br>❌ Chrome storage API not available', 'error');
+            }
+
+            // Check 4: Pattern matching
+            setTimeout(() => {
+                const percentPattern = /^(100|[1-9]?\d)%$/;
+                const pricePattern = /^\$0\.\d{2}$|^\$1\.00$/;
+                
+                let foundPercentages = 0;
+                let foundPrices = 0;
+                
+                const walker = document.createTreeWalker(
+                    document.body,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                );
+                
+                let node;
+                while (node = walker.nextNode()) {
+                    const text = node.textContent.trim();
+                    if (percentPattern.test(text)) foundPercentages++;
+                    if (pricePattern.test(text)) foundPrices++;
+                }
+                
+                log(`<strong>4. Pattern Matching:</strong><br>
+                    Found percentages: ${foundPercentages}<br>
+                    Found prices: ${foundPrices}<br>
+                    ${foundPercentages === 0 && foundPrices === 0 ? '⚠️ No matching patterns found' : '✅ Patterns detected'}`, 
+                    foundPercentages > 0 || foundPrices > 0 ? 'success' : 'warning');
+
+                // Check 5: Existing odds elements
+                const oddsElements = document.querySelectorAll('[data-kalshi-ao-odds]');
+                const oddsClasses = document.querySelectorAll('.kalshi-ao-odds');
+                
+                log(`<strong>5. Odds Elements:</strong><br>
+                    Elements with data-kalshi-ao-odds: ${oddsElements.length}<br>
+                    Elements with kalshi-ao-odds class: ${oddsClasses.length}<br>
+                    ${oddsElements.length > 0 || oddsClasses.length > 0 ? '✅ Extension is working!' : '❌ No odds elements found'}`, 
+                    oddsElements.length > 0 || oddsClasses.length > 0 ? 'success' : 'error');
+
+                // Final recommendation
+                setTimeout(() => {
+                    if (!isKalshiDomain) {
+                        log('<strong>🔧 SOLUTION:</strong> Access this page via kalshi.com domain', 'warning');
+                    } else if (typeof window.KalshiLogger === 'undefined') {
+                        log('<strong>🔧 SOLUTION:</strong> Extension not loaded. Go to chrome://extensions/ and reload the extension', 'warning');
+                    } else if (foundPercentages === 0 && foundPrices === 0) {
+                        log('<strong>🔧 SOLUTION:</strong> No percentages found. Try on a Kalshi trading page with market odds', 'warning');
+                    } else if (oddsElements.length === 0 && oddsClasses.length === 0) {
+                        log('<strong>🔧 SOLUTION:</strong> Try clicking "Reset Extension Settings" then refresh the page', 'warning');
+                    } else {
+                        log('<strong>✅ DIAGNOSIS:</strong> Extension appears to be working correctly!', 'success');
+                    }
+                }, 1000);
+            }, 500);
+        }
+
+        async function resetExtensionSettings() {
+            if (typeof chrome === 'undefined' || !chrome.storage) {
+                log('❌ Chrome storage API not available', 'error');
+                return;
+            }
+
+            try {
+                await chrome.storage.sync.clear();
+                const defaultSettings = {
+                    displayMode: 'rawAmerican',
+                    fallbackEstimateEnabled: false,
+                    helperPanelEnabled: true
+                };
+                await chrome.storage.sync.set(defaultSettings);
+                log('✅ Extension settings reset successfully. Please refresh the page.', 'success');
+            } catch (error) {
+                log(`❌ Error resetting settings: ${error.message}`, 'error');
+            }
+        }
+
+        function forceProcessPage() {
+            if (typeof window.KalshiLogger === 'undefined') {
+                log('❌ Extension not loaded - cannot force processing', 'error');
+                return;
+            }
+
+            log('🔄 Attempting to force page processing...', 'info');
+            
+            // Try different approaches to trigger processing
+            try {
+                // Method 1: Reload page
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+                log('🔄 Page will reload in 1 second to trigger processing', 'info');
+            } catch (error) {
+                log(`❌ Error forcing processing: ${error.message}`, 'error');
+            }
+        }
+
+        function checkPatterns() {
+            const percentPattern = /^(100|[1-9]?\d)%$/;
+            const pricePattern = /^\$0\.\d{2}$|^\$1\.00$/;
+            
+            const testCases = ['74%', '27%', '47%', '40%', '99%', '$0.74', '$0.27', '$0.47'];
+            
+            let results = '<strong>Pattern Test Results:</strong><br>';
+            testCases.forEach(test => {
+                const percentMatch = percentPattern.test(test);
+                const priceMatch = pricePattern.test(test);
+                const match = percentMatch || priceMatch;
+                results += `"${test}": ${match ? '✅' : '❌'}<br>`;
+            });
+            
+            log(results, 'info');
+        }
+
+        // Auto-run diagnostic after page loads
+        setTimeout(() => {
+            log('🚀 Auto-running diagnostic in 2 seconds...', 'info');
+            setTimeout(runFullDiagnostic, 2000);
+        }, 1000);
+    </script>
+</body>
+</html>
