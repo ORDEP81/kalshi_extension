@@ -29,38 +29,6 @@
             <input type="radio" name="displayMode" value="afterFeeAmerican">
             <span>After-fee American odds</span>
           </label>
-          <label>
-            <input type="radio" name="displayMode" value="cycle">
-            <span>Cycle through modes</span>
-          </label>
-        </div>
-      </section>
-
-      <section class="setting-group">
-        <h3>Show Sides</h3>
-        <div class="radio-group">
-          <label>
-            <input type="radio" name="showSides" value="yesAndNo">
-            <span>YES and NO</span>
-          </label>
-          <label>
-            <input type="radio" name="showSides" value="yesOnly">
-            <span>YES only</span>
-          </label>
-        </div>
-      </section>
-
-      <section class="setting-group">
-        <h3>Rounding</h3>
-        <div class="radio-group">
-          <label>
-            <input type="radio" name="rounding" value="integer">
-            <span>Integer odds</span>
-          </label>
-          <label>
-            <input type="radio" name="rounding" value="cents">
-            <span>To cents</span>
-          </label>
         </div>
       </section>
 
@@ -73,6 +41,19 @@
           </label>
           <p class="setting-description">
             When ticket fee cannot be read, estimate using published schedule
+          </p>
+        </div>
+      </section>
+
+      <section class="setting-group">
+        <h3>Limit Order Helper</h3>
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" id="helperPanelEnabled">
+            <span>Show helper panel for limit orders</span>
+          </label>
+          <p class="setting-description">
+            Display price conversion helper when placing limit orders
           </p>
         </div>
       </section>

@@ -6,9 +6,8 @@
 // Default settings
 const defaultSettings = {
   displayMode: 'rawAmerican',
-  showSides: 'yesAndNo',
-  rounding: 'integer',
-  fallbackEstimateEnabled: false
+  fallbackEstimateEnabled: false,
+  helperPanelEnabled: true
 };
 
 let currentSettings = { ...defaultSettings };
@@ -51,28 +50,15 @@ function updateUI() {
     if (defaultRadio) defaultRadio.checked = true;
   }
 
-  const showSidesRadio = document.querySelector(`input[name="showSides"][value="${currentSettings.showSides}"]`);
-  if (showSidesRadio) {
-    showSidesRadio.checked = true;
-  } else {
-    // Fallback to default if invalid value
-    const defaultRadio = document.querySelector(`input[name="showSides"][value="${defaultSettings.showSides}"]`);
-    if (defaultRadio) defaultRadio.checked = true;
-  }
-
-  const roundingRadio = document.querySelector(`input[name="rounding"][value="${currentSettings.rounding}"]`);
-  if (roundingRadio) {
-    roundingRadio.checked = true;
-  } else {
-    // Fallback to default if invalid value
-    const defaultRadio = document.querySelector(`input[name="rounding"][value="${defaultSettings.rounding}"]`);
-    if (defaultRadio) defaultRadio.checked = true;
-  }
-
-  // Update checkbox
+  // Update checkboxes
   const fallbackCheckbox = document.getElementById('fallbackEstimateEnabled');
   if (fallbackCheckbox) {
     fallbackCheckbox.checked = currentSettings.fallbackEstimateEnabled;
+  }
+
+  const helperPanelCheckbox = document.getElementById('helperPanelEnabled');
+  if (helperPanelCheckbox) {
+    helperPanelCheckbox.checked = currentSettings.helperPanelEnabled;
   }
 }
 
@@ -171,7 +157,7 @@ function validateForm() {
  * Validate radio button groups
  */
 function validateRadioGroups() {
-  const radioGroups = ['displayMode', 'showSides', 'rounding'];
+  const radioGroups = ['displayMode'];
   
   for (const groupName of radioGroups) {
     const checkedRadio = document.querySelector(`input[name="${groupName}"]:checked`);
@@ -189,7 +175,8 @@ function validateRadioGroups() {
  */
 function validateCheckboxes() {
   const fallbackCheckbox = document.getElementById('fallbackEstimateEnabled');
-  return fallbackCheckbox !== null;
+  const helperPanelCheckbox = document.getElementById('helperPanelEnabled');
+  return fallbackCheckbox !== null && helperPanelCheckbox !== null;
 }
 
 /**
@@ -203,15 +190,13 @@ async function saveSettings() {
 
     // Collect current form values
     const displayMode = document.querySelector('input[name="displayMode"]:checked')?.value || defaultSettings.displayMode;
-    const showSides = document.querySelector('input[name="showSides"]:checked')?.value || defaultSettings.showSides;
-    const rounding = document.querySelector('input[name="rounding"]:checked')?.value || defaultSettings.rounding;
     const fallbackEstimateEnabled = document.getElementById('fallbackEstimateEnabled')?.checked || false;
+    const helperPanelEnabled = document.getElementById('helperPanelEnabled')?.checked || true;
 
     const newSettings = {
       displayMode,
-      showSides,
-      rounding,
-      fallbackEstimateEnabled
+      fallbackEstimateEnabled,
+      helperPanelEnabled
     };
 
     // Validate setting values
@@ -240,13 +225,11 @@ async function saveSettings() {
  */
 function validateSettingValues(settings) {
   const validValues = {
-    displayMode: ['percent', 'rawAmerican', 'afterFeeAmerican', 'cycle'],
-    showSides: ['yesOnly', 'yesAndNo'],
-    rounding: ['integer', 'cents']
+    displayMode: ['percent', 'rawAmerican', 'afterFeeAmerican']
   };
 
   for (const [key, value] of Object.entries(settings)) {
-    if (key === 'fallbackEstimateEnabled') {
+    if (key === 'fallbackEstimateEnabled' || key === 'helperPanelEnabled') {
       if (typeof value !== 'boolean') {
         console.error(`Invalid ${key} value:`, value);
         return false;

@@ -3,7 +3,48 @@
  * Injects American odds display and limit-order helper into Kalshi pages
  */
 
-console.log('Kalshi American Odds extension loaded');
+// Early page detection check to prevent extension from running on excluded pages
+function shouldActivateExtensionEarly() {
+  const pathname = window.location.pathname;
+  
+  // Don't activate on certain pages that don't have odds/trading
+  const excludedPaths = [
+    '/help',
+    '/about',
+    '/privacy',
+    '/terms',
+    '/support',
+    '/blog',
+    '/news',
+    '/api',
+    '/docs'
+  ];
+  
+  // Check if current path starts with any excluded path
+  for (const excludedPath of excludedPaths) {
+    if (pathname.startsWith(excludedPath)) {
+      console.log(`Kalshi American Odds: Extension disabled on excluded path: ${pathname}`);
+      return false;
+    }
+  }
+  
+  // Only activate on kalshi.com domain (and localhost for development)
+  const hostname = window.location.hostname;
+  if (!hostname.includes('kalshi.com') && hostname !== 'localhost') {
+    console.log(`Kalshi American Odds: Extension disabled on non-Kalshi domain: ${hostname}`);
+    return false;
+  }
+  
+  console.log(`Kalshi American Odds: Extension activated on: ${pathname}`);
+  return true;
+}
+
+// Exit early if extension should not be active on this page
+if (!shouldActivateExtensionEarly()) {
+  console.log('Kalshi American Odds extension not loaded - page excluded');
+  // Don't execute the rest of the script
+} else {
+  console.log('Kalshi American Odds extension loaded');
 
 // ============================================================================
 // CENTRALIZED LOGGING AND DEBUGGING SYSTEM
@@ -496,25 +537,15 @@ window.KalshiLogger = KalshiLogger;
 
 // Extension state
 let settings = {
-  displayMode: 'rawAmerican', // percent | rawAmerican | afterFeeAmerican | cycle
-  showSides: 'yesAndNo', // yesOnly | yesAndNo
+  displayMode: 'rawAmerican', // percent | rawAmerican | afterFeeAmerican
   feeSource: 'ticketFirst', // always ticketFirst + optional fallbackEstimateEnabled
   fallbackEstimateEnabled: false,
-  rounding: 'integer' // integer | cents
-};
-
-// Cycle state for cycle display mode
-let cycleState = {
-  currentMode: 'rawAmerican', // Current mode in cycle
-  lastCycleTime: 0,
-  cycleInterval: 3000 // 3 seconds between cycles
+  helperPanelEnabled: false // Default to false until settings are loaded
 };
 
 // Valid setting values for validation
 const validSettingValues = {
-  displayMode: ['percent', 'rawAmerican', 'afterFeeAmerican', 'cycle'],
-  showSides: ['yesOnly', 'yesAndNo'],
-  rounding: ['integer', 'cents']
+  displayMode: ['percent', 'rawAmerican', 'afterFeeAmerican']
 };
 
 /**
@@ -524,7 +555,7 @@ function validateSettings(settingsToValidate) {
   KalshiLogger.debug('CONFIGURATION', 'Validating settings', { settings: settingsToValidate });
   
   for (const [key, value] of Object.entries(settingsToValidate)) {
-    if (key === 'fallbackEstimateEnabled') {
+    if (key === 'fallbackEstimateEnabled' || key === 'helperPanelEnabled') {
       if (typeof value !== 'boolean') {
         KalshiLogger.warn('CONFIGURATION', `Invalid ${key} value: expected boolean`, {
           key,
@@ -552,7 +583,6 @@ function validateSettings(settingsToValidate) {
 let processedNodes = new WeakSet();
 let mutationObserver = null;
 let debounceTimer = null;
-let cycleTimer = null;
 let observerStats = {
   mutationsProcessed: 0,
   lastProcessTime: 0,
@@ -1875,7 +1905,6 @@ const KalshiDebugger = {
   getExtensionState() {
     return {
       settings: settings,
-      cycleState: cycleState,
       observerStats: observerStats,
       ticketState: {
         isOpen: ticketState.isOpen,
@@ -4771,9 +4800,62 @@ function validateTicketData(ticketData) {
 }
 
 /**
+ * Check if the current page should have the extension active
+ * This is a secondary check that provides more detailed logging
+ */
+function shouldActivateExtension() {
+  // Use the same logic as the early check but with enhanced logging
+  const url = window.location.href;
+  const pathname = window.location.pathname;
+  
+  // Don't activate on certain pages that don't have odds/trading
+  const excludedPaths = [
+    '/documents',
+    '/help',
+    '/about',
+    '/privacy',
+    '/terms',
+    '/support',
+    '/blog',
+    '/news',
+    '/api',
+    '/docs'
+  ];
+  
+  // Check if current path starts with any excluded path
+  for (const excludedPath of excludedPaths) {
+    if (pathname.startsWith(excludedPath)) {
+      KalshiLogger.info('INITIALIZATION', `Extension disabled on excluded path: ${pathname}`);
+      return false;
+    }
+  }
+  
+  // Only activate on kalshi.com domain (and localhost for development)
+  const hostname = window.location.hostname;
+  if (!hostname.includes('kalshi.com') && hostname !== 'localhost') {
+    KalshiLogger.info('INITIALIZATION', `Extension disabled on non-Kalshi domain: ${hostname}`);
+    return false;
+  }
+  
+  KalshiLogger.info('INITIALIZATION', `Extension activated on: ${pathname}`);
+  return true;
+}
+
+/**
  * Initialize the extension
  */
 async function init() {
+  // Check if extension should be active on this page
+  if (!shouldActivateExtension()) {
+    KalshiLogger.info('INITIALIZATION', 'Extension not activated on this page');
+    return;
+  }
+  
+  KalshiLogger.info('INITIALIZATION', 'Kalshi American Odds extension initializing');
+  
+  // Wait for page to be fully loaded before processing
+  await waitForPageLoad();
+  
   await loadSettings();
   setupMutationObserver();
   setupHelperPanelPositioning();
@@ -4792,6 +4874,25 @@ async function init() {
       // Page is visible again, restart observer
       setupMutationObserver();
     }
+  });
+}
+
+/**
+ * Wait for page to be fully loaded and stable
+ */
+async function waitForPageLoad() {
+  return new Promise((resolve) => {
+    // If page is already loaded, wait a bit more for dynamic content
+    if (document.readyState === 'complete') {
+      setTimeout(resolve, 1000);
+      return;
+    }
+    
+    // Wait for load event
+    window.addEventListener('load', () => {
+      // Give additional time for dynamic content to load
+      setTimeout(resolve, 1500);
+    }, { once: true });
   });
 }
 
@@ -4816,11 +4917,6 @@ function cleanup() {
     debounceTimer = null;
   }
   
-  if (cycleTimer) {
-    clearInterval(cycleTimer);
-    cycleTimer = null;
-  }
-  
   // Reset ticket state
   ticketState.isOpen = false;
   ticketState.ticketElement = null;
@@ -4834,17 +4930,13 @@ async function loadSettings() {
   try {
     const defaultSettings = {
       displayMode: 'rawAmerican',
-      showSides: 'yesAndNo',
-      rounding: 'integer',
-      fallbackEstimateEnabled: false
+      fallbackEstimateEnabled: false,
+      helperPanelEnabled: true
     };
     
     const result = await chrome.storage.sync.get(defaultSettings);
     settings = { ...settings, ...result };
     console.log('Settings loaded:', settings);
-    
-    // Setup cycle timer if needed
-    manageCycleTimer();
     
     // Process page after settings are loaded
     processPage();
@@ -5040,6 +5132,12 @@ function isPriceText(text) {
  */
 async function processPage() {
   try {
+    // Double-check that we should be processing this page
+    if (!shouldActivateExtension()) {
+      KalshiLogger.debug('PROCESSING', 'Skipping page processing - extension not active on this page');
+      return;
+    }
+    
     const startTime = performance.now();
     console.log('Processing page with settings:', settings);
     
@@ -5126,48 +5224,9 @@ function getProbabilityTextFromContainer(container) {
 }
 
 /**
- * Setup or clear cycle timer based on display mode
- */
-function manageCycleTimer() {
-  // Clear existing timer
-  if (cycleTimer) {
-    clearInterval(cycleTimer);
-    cycleTimer = null;
-  }
-  
-  // Setup new timer if in cycle mode
-  if (settings.displayMode === 'cycle') {
-    console.log('Starting cycle timer');
-    cycleState.lastCycleTime = Date.now();
-    cycleTimer = setInterval(() => {
-      getEffectiveDisplayMode(); // This will trigger cycling and reprocessing
-    }, cycleState.cycleInterval);
-  }
-}
-
-/**
- * Get the effective display mode (handles cycle mode)
+ * Get the effective display mode
  */
 function getEffectiveDisplayMode() {
-  if (settings.displayMode === 'cycle') {
-    const now = Date.now();
-    if (now - cycleState.lastCycleTime >= cycleState.cycleInterval) {
-      // Cycle to next mode
-      const modes = ['percent', 'rawAmerican', 'afterFeeAmerican'];
-      const currentIndex = modes.indexOf(cycleState.currentMode);
-      const nextIndex = (currentIndex + 1) % modes.length;
-      cycleState.currentMode = modes[nextIndex];
-      cycleState.lastCycleTime = now;
-      
-      console.log('Cycling to display mode:', cycleState.currentMode);
-      
-      // Reprocess page with new mode after a short delay
-      setTimeout(() => {
-        processPage();
-      }, 100);
-    }
-    return cycleState.currentMode;
-  }
   return settings.displayMode;
 }
 
@@ -5240,11 +5299,139 @@ async function updateHelperPanel(ticketElement, ticketData) {
 }
 
 /**
+ * Check if the current ticket is a limit order (not a market order)
+ * @param {Element} ticketElement - The ticket element to check
+ * @returns {boolean} True if it's a limit order, false otherwise
+ */
+function isLimitOrder(ticketElement) {
+  if (!ticketElement) {
+    console.log('No ticket element provided to isLimitOrder check');
+    return false;
+  }
+  
+  try {
+    // Strategy 1: Look for price input fields (limit orders have price inputs, market orders don't)
+    const priceInputs = ticketElement.querySelectorAll('input[type="number"], input[type="text"]');
+    for (const input of priceInputs) {
+      // Check if this looks like a price input
+      const placeholder = input.placeholder?.toLowerCase() || '';
+      const label = input.getAttribute('aria-label')?.toLowerCase() || '';
+      const name = input.name?.toLowerCase() || '';
+      const id = input.id?.toLowerCase() || '';
+      
+      if (placeholder.includes('price') || label.includes('price') || 
+          name.includes('price') || id.includes('price') ||
+          placeholder.includes('limit') || label.includes('limit') ||
+          name.includes('limit') || id.includes('limit')) {
+        console.log('✅ Limit order detected: found price input field');
+        return true;
+      }
+      
+      // Check if input has price-like constraints (0.01 to 1.00 range typical for Kalshi)
+      if (input.min === '0.01' || input.max === '0.99' || input.max === '1' || input.max === '1.00') {
+        console.log('✅ Limit order detected: found price-constrained input');
+        return true;
+      }
+    }
+    
+    // Strategy 2: Look for text content that indicates limit order
+    const textContent = ticketElement.textContent?.toLowerCase() || '';
+    
+    // Look for "limit" keyword in prominent places
+    const limitKeywords = ['limit order', 'limit price', 'set price', 'price limit'];
+    for (const keyword of limitKeywords) {
+      if (textContent.includes(keyword)) {
+        console.log(`✅ Limit order detected: found keyword "${keyword}"`);
+        return true;
+      }
+    }
+    
+    // Strategy 3: Look for labels or headings that suggest limit order
+    const labels = ticketElement.querySelectorAll('label, h1, h2, h3, h4, h5, h6, .title, .header');
+    for (const label of labels) {
+      const labelText = label.textContent?.toLowerCase() || '';
+      if (labelText.includes('limit') || labelText.includes('price')) {
+        console.log('✅ Limit order detected: found limit/price in label');
+        return true;
+      }
+    }
+    
+    // Strategy 4: Check for market order indicators (if found, it's NOT a limit order)
+    const marketKeywords = ['market order', 'market price', 'current price', 'instant'];
+    for (const keyword of marketKeywords) {
+      if (textContent.includes(keyword)) {
+        console.log(`❌ Market order detected: found keyword "${keyword}"`);
+        return false;
+      }
+    }
+    
+    // Strategy 5: Look for buttons or tabs that might indicate order type
+    const buttons = ticketElement.querySelectorAll('button, .tab, .toggle');
+    for (const button of buttons) {
+      const buttonText = button.textContent?.toLowerCase() || '';
+      const isSelected = button.classList.contains('selected') || 
+                        button.classList.contains('active') ||
+                        button.getAttribute('aria-pressed') === 'true' ||
+                        button.getAttribute('aria-selected') === 'true';
+      
+      if (isSelected) {
+        if (buttonText.includes('limit')) {
+          console.log('✅ Limit order detected: limit button/tab is selected');
+          return true;
+        }
+        if (buttonText.includes('market')) {
+          console.log('❌ Market order detected: market button/tab is selected');
+          return false;
+        }
+      }
+    }
+    
+    // Default: If we can't determine the order type but there are price inputs, assume limit order
+    // This is because the helper panel is specifically for limit orders (converting odds to prices)
+    if (priceInputs.length > 0) {
+      console.log('🤔 Order type unclear, but found inputs - assuming limit order for helper panel');
+      return true;
+    }
+    
+    console.log('❌ No clear indicators of limit order found');
+    return false;
+    
+  } catch (error) {
+    console.error('Error detecting limit order:', error);
+    // On error, default to false (don't show helper panel)
+    return false;
+  }
+}
+
+/**
  * Check if helper panel should be shown based on settings and context
  */
 function shouldShowHelperPanel() {
-  // Add logic here based on settings when helper panel settings are implemented
-  // For now, always show if the feature is available
+  console.log('🔍 shouldShowHelperPanel check:');
+  console.log('  - settings.helperPanelEnabled:', settings.helperPanelEnabled);
+  console.log('  - ticketState.ticketElement exists:', !!ticketState.ticketElement);
+  
+  // Check if helper panel is enabled in settings
+  if (!settings.helperPanelEnabled) {
+    console.log('  ❌ Helper panel not shown: disabled in settings');
+    return false;
+  }
+  
+  // Only show helper panel for limit orders
+  if (!ticketState.ticketElement) {
+    console.log('  ❌ Helper panel not shown: no ticket element');
+    return false;
+  }
+  
+  const isLimit = isLimitOrder(ticketState.ticketElement);
+  console.log('  - isLimitOrder result:', isLimit);
+  
+  if (!isLimit) {
+    console.log('  ❌ Helper panel not shown: not a limit order');
+    return false;
+  }
+  
+  console.log('  ✅ Helper panel should be shown: limit order detected and enabled in settings');
   return true;
 }
 
@@ -5291,6 +5478,12 @@ function clearExistingOdds() {
  * Process probability/price nodes and inject odds
  */
 function processOddsNodes() {
+  // Safety check - don't process if extension shouldn't be active
+  if (!shouldActivateExtension()) {
+    KalshiLogger.debug('PROCESSING', 'Skipping odds processing - extension not active on this page');
+    return;
+  }
+  
   const effectiveMode = getEffectiveDisplayMode();
   console.log('Processing odds nodes with displayMode:', settings.displayMode, 'effective:', effectiveMode);
   
@@ -5463,12 +5656,8 @@ function probabilityToAmericanOdds(p) {
     odds = -100 * p / (1 - p); // Negative odds
   }
   
-  // Apply rounding based on settings
-  if (settings.rounding === 'integer') {
-    return Math.round(odds);
-  } else if (settings.rounding === 'cents') {
-    return Math.round(odds * 100) / 100; // Round to 2 decimal places
-  }
+  // Apply integer rounding (no rounding options)
+  return Math.round(odds);
   
   return Math.round(odds); // Default to integer rounding
 }
@@ -5615,7 +5804,6 @@ function validateMathematicalConsistency(price, feePerContract, afterFeeOdds) {
  * @param {number} price - The limit price (0.01 to 1.00)
  * @param {number} feePerContract - The fee per contract
  * @param {Object} options - Optional configuration
- * @param {string} options.rounding - Rounding mode ('integer' or 'cents')
  * @param {boolean} options.enableValidation - Enable comprehensive validation (default: true)
  * @returns {number|null} American odds or null if invalid inputs
  */
@@ -5683,17 +5871,8 @@ function calculateAfterFeeOdds(price, feePerContract, options = {}) {
     rawOdds = -100 * (calculatedRisk / calculatedProfit);
   }
   
-  // Apply rounding based on options or global settings
-  const roundingMode = options.rounding || settings.rounding || 'integer';
-  
-  let finalOdds;
-  if (roundingMode === 'integer') {
-    finalOdds = Math.round(rawOdds);
-  } else if (roundingMode === 'cents') {
-    finalOdds = Math.round(rawOdds * 100) / 100; // Round to 2 decimal places
-  } else {
-    finalOdds = Math.round(rawOdds); // Default to integer rounding
-  }
+  // Apply integer rounding (no rounding options)
+  let finalOdds = Math.round(rawOdds);
   
   // Comprehensive validation of final result (Task 4.3.4)
   if (enableValidation) {
@@ -5836,31 +6015,13 @@ function createOddsElement(americanOdds, matchType, probability) {
   const oddsElement = document.createElement('span');
   oddsElement.className = 'kalshi-ao-odds';
   
-  // Format odds display based on rounding setting
+  // Format odds display - always show integer odds (no rounding options)
   let oddsText;
-  if (settings.rounding === 'cents' && americanOdds % 1 !== 0) {
-    // Show decimal places for cents rounding
-    oddsText = americanOdds > 0 ? `+${americanOdds.toFixed(2)}` : `${americanOdds.toFixed(2)}`;
-  } else {
-    // Integer display
-    oddsText = americanOdds > 0 ? `+${americanOdds}` : `${americanOdds}`;
-  }
+  const roundedOdds = Math.round(americanOdds);
+  oddsText = roundedOdds > 0 ? `+${roundedOdds}` : `${roundedOdds}`;
   
-  // Handle showSides setting
-  if (settings.showSides === 'yesAndNo') {
-    // Show both YES and NO odds
-    const noOdds = probabilityToAmericanOdds(1 - probability);
-    let noOddsText;
-    if (settings.rounding === 'cents' && noOdds % 1 !== 0) {
-      noOddsText = noOdds > 0 ? `+${noOdds.toFixed(2)}` : `${noOdds.toFixed(2)}`;
-    } else {
-      noOddsText = noOdds > 0 ? `+${noOdds}` : `${noOdds}`;
-    }
-    oddsElement.textContent = ` (YES: ${oddsText}, NO: ${noOddsText})`;
-  } else {
-    // Show only YES odds (yesOnly)
-    oddsElement.textContent = ` (${oddsText})`;
-  }
+  // Always show only YES odds
+  oddsElement.textContent = ` (${oddsText})`;
   
   // Apply comprehensive click-safe styling with enhanced specificity
   oddsElement.style.cssText = `
@@ -5887,7 +6048,6 @@ function createOddsElement(americanOdds, matchType, probability) {
   oddsElement.setAttribute('data-kalshi-ao-odds', '1');
   oddsElement.setAttribute('data-match-type', matchType);
   oddsElement.setAttribute('data-display-mode', settings.displayMode);
-  oddsElement.setAttribute('data-show-sides', settings.showSides);
   
   // Ensure element cannot receive focus
   oddsElement.setAttribute('tabindex', '-1');
@@ -7054,7 +7214,7 @@ async function updateAfterFeeOddsDisplay(ticketElement, ticketData) {
   try {
     console.log('Updating after-fee odds display...');
     
-    // Only show after-fee odds if display mode is afterFeeAmerican or cycle mode
+    // Only show after-fee odds if display mode is afterFeeAmerican
     const effectiveMode = getEffectiveDisplayMode();
     if (effectiveMode !== 'afterFeeAmerican') {
       console.log('Skipping after-fee odds display - effective mode is', effectiveMode);
@@ -7393,13 +7553,10 @@ function updateAfterFeeOddsElement(element, afterFeeResult) {
     fallbackReasons
   } = afterFeeResult;
   
-  // Format odds display
+  // Format odds display - always integer
   const formatOdds = (odds) => {
-    if (settings.rounding === 'cents' && odds % 1 !== 0) {
-      return odds > 0 ? `+${odds.toFixed(2)}` : `${odds.toFixed(2)}`;
-    } else {
-      return odds > 0 ? `+${odds}` : `${odds}`;
-    }
+    const roundedOdds = Math.round(odds);
+    return roundedOdds > 0 ? `+${roundedOdds}` : `${roundedOdds}`;
   };
   
   const afterFeeOddsText = formatOdds(afterFeeOdds);
@@ -8005,14 +8162,13 @@ function handleTicketButtonClick(event) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SETTINGS_UPDATED') {
     console.log('Received settings update:', message.settings);
+    console.log('Current settings before update:', settings);
     
     // Validate settings before applying
     if (validateSettings(message.settings)) {
       settings = { ...settings, ...message.settings };
       console.log('Settings updated successfully:', settings);
-      
-      // Manage cycle timer based on new settings
-      manageCycleTimer();
+      console.log('helperPanelEnabled is now:', settings.helperPanelEnabled);
       
       // Reprocess page with new settings
       processPage();
@@ -8050,9 +8206,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       settings = updatedSettings;
       console.log('Settings updated from storage sync:', settings);
       
-      // Manage cycle timer based on updated settings
-      manageCycleTimer();
-      
       // Reprocess page with updated settings
       processPage();
     } else if (hasValidChanges) {
@@ -8077,8 +8230,12 @@ function onTicketOpened(ticketElement) {
   ticketState.ticketElement = ticketElement;
   ticketState.lastTicketHash = generateTicketHash(ticketElement);
   
-  // Show helper panel
-  showHelperPanel();
+  // Only show helper panel if it's a limit order
+  if (shouldShowHelperPanel()) {
+    showHelperPanel();
+  } else {
+    console.log('Helper panel not shown - not a limit order');
+  }
   
   // Parse initial ticket data
   parseAndProcessTicketData(ticketElement);
@@ -8935,7 +9092,20 @@ function formatAmericanOdds(odds) {
  * Show helper panel near the order ticket
  */
 function showHelperPanel() {
-  if (helperPanelState.isVisible) return;
+  console.log('🎯 showHelperPanel called');
+  
+  // Double-check settings before showing
+  if (!settings.helperPanelEnabled) {
+    console.log('  ❌ Helper panel blocked: disabled in settings');
+    return;
+  }
+  
+  if (helperPanelState.isVisible) {
+    console.log('  ⚠️ Helper panel already visible, skipping');
+    return;
+  }
+  
+  console.log('  ✅ Showing helper panel - settings.helperPanelEnabled:', settings.helperPanelEnabled);
   
   // Inject panel into DOM
   injectHelperPanel();
@@ -9882,3 +10052,5 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+} // End of shouldActivateExtensionEarly() check
