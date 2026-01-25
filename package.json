@@ -16,7 +16,7 @@
     "betting",
     "trading"
   ],
-  "author": "Your Name",
+  "author": "Pedro Oliva",
   "license": "MIT",
   "devDependencies": {
     "jsdom": "^27.4.0",
