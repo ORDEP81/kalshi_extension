@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kalshi American Odds Settings</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <h1>Kalshi American Odds</h1>
+      <p>Settings for odds display and limit-order helper</p>
+    </header>
+
+    <main class="popup-content">
+      <section class="setting-group">
+        <h3>Display Mode</h3>
+        <div class="radio-group">
+          <label>
+            <input type="radio" name="displayMode" value="percent">
+            <span>Percent (default)</span>
+          </label>
+          <label>
+            <input type="radio" name="displayMode" value="rawAmerican">
+            <span>Raw American odds</span>
+          </label>
+          <label>
+            <input type="radio" name="displayMode" value="afterFeeAmerican">
+            <span>After-fee American odds</span>
+          </label>
+          <label>
+            <input type="radio" name="displayMode" value="cycle">
+            <span>Cycle through modes</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="setting-group">
+        <h3>Show Sides</h3>
+        <div class="radio-group">
+          <label>
+            <input type="radio" name="showSides" value="yesAndNo">
+            <span>YES and NO</span>
+          </label>
+          <label>
+            <input type="radio" name="showSides" value="yesOnly">
+            <span>YES only</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="setting-group">
+        <h3>Rounding</h3>
+        <div class="radio-group">
+          <label>
+            <input type="radio" name="rounding" value="integer">
+            <span>Integer odds</span>
+          </label>
+          <label>
+            <input type="radio" name="rounding" value="cents">
+            <span>To cents</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="setting-group">
+        <h3>Fee Calculation</h3>
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" id="fallbackEstimateEnabled">
+            <span>Enable fallback fee estimation</span>
+          </label>
+          <p class="setting-description">
+            When ticket fee cannot be read, estimate using published schedule
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="popup-footer">
+      <button id="saveSettings" class="btn-primary">Save Settings</button>
+      <div class="status-message" id="statusMessage"></div>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
