@@ -4934,8 +4934,7 @@ async function loadSettings() {
   try {
     const defaultSettings = {
       displayMode: 'rawAmerican',
-      fallbackEstimateEnabled: false,
-      helperPanelEnabled: true
+      fallbackEstimateEnabled: false
     };
     
     const result = await chrome.storage.sync.get(defaultSettings);
@@ -5149,7 +5148,7 @@ async function processPage() {
     cleanupOrphanedOdds();
     
     processOddsNodes();
-    await processOrderTicket(); // Now async with enhanced error handling
+    // await processOrderTicket(); // Disabled - helper panel functionality removed
     
     const endTime = performance.now();
     observerStats.lastProcessTime = endTime - startTime;
@@ -7077,137 +7076,6 @@ function onTicketClosed() {
 }
 
 /**
- * Handle ticket content changed event
- * Enhanced with comprehensive error handling and graceful degradation
- */
-async function onTicketContentChanged(ticketElement) {
-  console.log('Order ticket content changed');
-  
-  try {
-    // Validate ticket element is still accessible
-    if (!ticketElement || !document.contains(ticketElement)) {
-      console.warn('⚠️ Ticket element is no longer accessible, closing ticket');
-      onTicketClosed();
-      return;
-    }
-    
-    // Update ticket hash
-    ticketState.lastTicketHash = generateTicketHash(ticketElement);
-    
-    // Re-parse ticket data with error handling
-    let ticketData = null;
-    try {
-      ticketData = await parseTicketData(ticketElement);
-      console.log('✅ Updated ticket data:', ticketData);
-    } catch (parseError) {
-      console.error('❌ Failed to re-parse ticket data:', parseError.message);
-      logParsingError('onTicketContentChanged', `Re-parsing failed: ${parseError.message}`, ticketElement, parseError);
-      
-      // Try to continue with previous data or graceful degradation
-      console.log('🔄 Attempting to continue with graceful degradation...');
-      
-      // Create minimal ticket data for graceful degradation
-      ticketData = {
-        side: null,
-        price: null,
-        quantity: null,
-        fee: null,
-        isValid: false,
-        errors: [`Re-parsing failed: ${parseError.message}`],
-        timestamp: Date.now(),
-        parseTime: null,
-        fallbacksUsed: [],
-        gracefulDegradation: true
-      };
-    }
-    
-    // Update after-fee odds display if data is valid or can proceed
-    if (ticketData && (ticketData.isValid || ticketData.validationSummary?.canProceed)) {
-      try {
-        await updateAfterFeeOddsDisplay(ticketElement, ticketData);
-        console.log('✅ After-fee odds display updated successfully');
-      } catch (displayError) {
-        console.error('❌ Failed to update after-fee odds display:', displayError.message);
-        logParsingError('onTicketContentChanged', `Display update failed: ${displayError.message}`, ticketElement, displayError);
-        
-        // Clear display on error to avoid showing stale data
-        try {
-          clearAfterFeeOddsDisplay(ticketElement);
-        } catch (clearError) {
-          console.warn('⚠️ Failed to clear after-fee odds display:', clearError.message);
-        }
-      }
-    } else {
-      // Clear after-fee odds display if data is invalid
-      console.log('ℹ️ Clearing after-fee odds display due to invalid data');
-      try {
-        clearAfterFeeOddsDisplay(ticketElement);
-      } catch (clearError) {
-        console.warn('⚠️ Failed to clear after-fee odds display:', clearError.message);
-      }
-    }
-    
-    // Update helper panel with error handling
-    try {
-      await updateHelperPanel(ticketElement, ticketData);
-      console.log('✅ Helper panel updated successfully');
-    } catch (helperError) {
-      console.error('❌ Failed to update helper panel:', helperError.message);
-      logParsingError('onTicketContentChanged', `Helper panel update failed: ${helperError.message}`, ticketElement, helperError);
-      
-      // Continue without helper panel update - not critical
-      console.log('ℹ️ Continuing without helper panel update');
-    }
-    
-    // Dispatch custom event with error handling
-    try {
-      const event = new CustomEvent('kalshi-ao-ticket-changed', {
-        detail: { 
-          ticketElement, 
-          ticketData,
-          success: true,
-          errors: ticketData?.errors || []
-        }
-      });
-      document.dispatchEvent(event);
-    } catch (eventError) {
-      console.warn('⚠️ Failed to dispatch ticket changed event:', eventError.message);
-      // This is not critical - continue without the event
-    }
-    
-    console.log('✅ Ticket content changed event handling completed');
-    
-  } catch (error) {
-    console.error('❌ Critical error in onTicketContentChanged:', error.message);
-    logParsingError('onTicketContentChanged', `Critical error: ${error.message}`, ticketElement, error);
-    
-    // On critical error, try to recover by clearing displays
-    try {
-      clearAfterFeeOddsDisplay(ticketElement);
-    } catch (clearError) {
-      console.warn('⚠️ Failed to clear displays during error recovery:', clearError.message);
-    }
-    
-    // Show user-friendly error message
-    showTicketDetectionError('An error occurred while updating order information. Some features may not work correctly.');
-    
-    // Dispatch error event
-    try {
-      const errorEvent = new CustomEvent('kalshi-ao-ticket-error', {
-        detail: { 
-          error: error.message,
-          ticketElement,
-          phase: 'content-changed'
-        }
-      });
-      document.dispatchEvent(errorEvent);
-    } catch (eventError) {
-      console.warn('⚠️ Failed to dispatch error event:', eventError.message);
-    }
-  }
-}
-
-/**
  * Update after-fee odds display in the ticket
  * @param {Element} ticketElement - The ticket element
  * @param {Object} ticketData - Parsed ticket data
@@ -8221,27 +8089,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
  * TICKET EVENT HANDLERS
  * ============================================================================
  */
-
-/**
- * Handle ticket opened event
- */
-function onTicketOpened(ticketElement) {
-  console.log('Order ticket opened');
-  
-  ticketState.isOpen = true;
-  ticketState.ticketElement = ticketElement;
-  ticketState.lastTicketHash = generateTicketHash(ticketElement);
-  
-  // Only show helper panel if it's a limit order
-  if (shouldShowHelperPanel()) {
-    showHelperPanel();
-  } else {
-    console.log('Helper panel not shown - not a limit order');
-  }
-  
-  // Parse initial ticket data
-  parseAndProcessTicketData(ticketElement);
-}
 
 /**
  * Handle ticket closed event (enhanced for Task 5.3.2)

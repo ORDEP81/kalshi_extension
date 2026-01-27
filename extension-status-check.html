@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Extension Status Check</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        button { padding: 10px 20px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Kalshi Extension Status Check</h1>
+    <div id="results"></div>
+    
+    <button onclick="checkExtension()">Check Extension Status</button>
+    <button onclick="forceProcessOdds()">Force Process Odds</button>
+    <button onclick="reloadExtension()">Reload Extension</button>
+    
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+        }
+        
+        function checkExtension() {
+            document.getElementById('results').innerHTML = '';
+            log('🔍 Checking extension status...', 'info');
+            
+            // Check if extension functions exist
+            if (typeof shouldActivateExtensionEarly === 'undefined') {
+                log('❌ Extension not loaded - content script failed to inject', 'error');
+                log('Try: 1) Reload the page, 2) Check if extension is enabled in chrome://extensions/', 'warning');
+                return;
+            }
+            
+            log('✅ Extension loaded successfully', 'success');
+            
+            // Check page activation
+            try {
+                const shouldActivate = shouldActivateExtensionEarly();
+                if (shouldActivate) {
+                    log('✅ Extension should be active on this page', 'success');
+                } else {
+                    log('❌ Extension disabled on this page', 'error');
+                    log('Current URL: ' + window.location.href, 'info');
+                }
+            } catch (error) {
+                log('❌ Error checking page activation: ' + error.message, 'error');
+            }
+            
+            // Check settings
+            if (typeof settings !== 'undefined') {
+                log('✅ Settings loaded: ' + JSON.stringify(settings), 'success');
+            } else {
+                log('❌ Settings not loaded', 'error');
+            }
+            
+            // Check processing functions
+            const functions = ['processPage', 'processOddsNodes', 'getEffectiveDisplayMode'];
+            functions.forEach(funcName => {
+                if (typeof window[funcName] === 'function') {
+                    log(`✅ ${funcName} function available`, 'success');
+                } else {
+                    log(`❌ ${funcName} function missing`, 'error');
+                }
+            });
+            
+            // Check for existing odds
+            const oddsElements = document.querySelectorAll('[data-kalshi-ao]');
+            log(`Found ${oddsElements.length} existing odds elements`, oddsElements.length > 0 ? 'success' : 'warning');
+        }
+        
+        function forceProcessOdds() {
+            log('🔄 Attempting to force process odds...', 'info');
+            
+            if (typeof processOddsNodes !== 'function') {
+                log('❌ processOddsNodes function not available', 'error');
+                return;
+            }
+            
+            try {
+                // Clear existing odds first
+                const existing = document.querySelectorAll('[data-kalshi-ao]');
+                existing.forEach(el => el.remove());
+                log(`Cleared ${existing.length} existing odds elements`, 'info');
+                
+                // Force process
+                processOddsNodes();
+                
+                // Check results
+                setTimeout(() => {
+                    const newOdds = document.querySelectorAll('[data-kalshi-ao]');
+                    if (newOdds.length > 0) {
+                        log(`✅ Success! Created ${newOdds.length} new odds elements`, 'success');
+                        newOdds.forEach((el, i) => {
+                            log(`  ${i + 1}: "${el.textContent}"`, 'info');
+                        });
+                    } else {
+                        log('⚠️ No odds elements created - checking for probability text...', 'warning');
+                        
+                        // Look for probability patterns
+                        const allText = document.body.innerText;
+                        const patterns = [
+                            { name: 'Percentages', regex: /\d+%/g },
+                            { name: 'Cents', regex: /\d+¢/g },
+                            { name: 'Prices', regex: /\$\d+\.\d{2}/g }
+                        ];
+                        
+                        patterns.forEach(pattern => {
+                            const matches = allText.match(pattern.regex) || [];
+                            log(`Found ${matches.length} ${pattern.name}: ${matches.slice(0, 5).join(', ')}`, 'info');
+                        });
+                    }
+                }, 100);
+                
+            } catch (error) {
+                log('❌ Error processing odds: ' + error.message, 'error');
+            }
+        }
+        
+        function reloadExtension() {
+            log('🔄 Attempting to reload extension...', 'info');
+            try {
+                if (typeof chrome !== 'undefined' && chrome.runtime) {
+                    chrome.runtime.reload();
+                    log('✅ Extension reload requested', 'success');
+                } else {
+                    log('❌ Cannot reload extension - chrome.runtime not available', 'error');
+                    log('Try manually: Go to chrome://extensions/ and click the reload button', 'warning');
+                }
+            } catch (error) {
+                log('❌ Error reloading extension: ' + error.message, 'error');
+            }
+        }
+        
+        // Auto-run check when page loads
+        setTimeout(checkExtension, 1000);
+    </script>
+</body>
+</html>

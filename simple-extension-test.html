@@ -1,82 +1,84 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Simple Kalshi Extension Test</title>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: white; }
-        .test-market { margin: 20px 0; padding: 15px; border: 1px solid #333; background: #2a2a2a; }
-        .percentage { font-weight: bold; color: #4CAF50; font-size: 18px; }
-        .price { font-weight: bold; color: #2196F3; font-size: 18px; }
-        .instructions { background: #333; padding: 15px; margin: 20px 0; border-radius: 5px; }
-    </style>
+    <title>Simple Extension Test</title>
 </head>
 <body>
-    <h1>Kalshi Extension Test Page</h1>
+    <h1>Extension Loading Test</h1>
+    <div id="results"></div>
     
-    <div class="instructions">
-        <h3>Instructions:</h3>
-        <ol>
-            <li>Make sure you're on kalshi.com domain (this test won't work on localhost)</li>
-            <li>Open browser console (F12)</li>
-            <li>Copy and paste the debug script from debug-kalshi-extension.js</li>
-            <li>Look for American odds next to the percentages below</li>
-        </ol>
-    </div>
-
-    <div class="test-market">
-        <h3>Market 1: New England</h3>
-        <p>Probability: <span class="percentage">74%</span></p>
-        <p>Expected odds: -285</p>
-    </div>
-
-    <div class="test-market">
-        <h3>Market 2: Denver</h3>
-        <p>Probability: <span class="percentage">27%</span></p>
-        <p>Expected odds: +270</p>
-    </div>
-
-    <div class="test-market">
-        <h3>Market 3: Spread Bet</h3>
-        <p>Probability: <span class="percentage">47%</span></p>
-        <p>Expected odds: +113</p>
-    </div>
-
-    <div class="test-market">
-        <h3>Market 4: Over/Under</h3>
-        <p>Probability: <span class="percentage">40%</span></p>
-        <p>Expected odds: +150</p>
-    </div>
-
-    <div class="test-market">
-        <h3>Market 5: Price Format</h3>
-        <p>Price: <span class="price">$0.74</span></p>
-        <p>Expected odds: -285</p>
-    </div>
-
-    <div class="instructions">
-        <h3>What Should Happen:</h3>
-        <p>If the extension is working, you should see American odds appear next to each percentage/price, like:</p>
-        <ul>
-            <li>74% <strong>(-285)</strong></li>
-            <li>27% <strong>(+270)</strong></li>
-            <li>47% <strong>(+113)</strong></li>
-            <li>40% <strong>(+150)</strong></li>
-            <li>$0.74 <strong>(-285)</strong></li>
-        </ul>
-    </div>
-
     <script>
-        // Simple test to check if extension is loaded
-        setTimeout(() => {
-            console.log('Test page loaded. Extension should process this page now.');
+        function testExtensionLoading() {
+            const results = document.getElementById('results');
+            let output = '<h2>Extension Loading Test Results:</h2>';
             
-            if (typeof window.KalshiLogger !== 'undefined') {
-                console.log('✅ Extension detected on test page');
+            // Test 1: Check if extension loaded
+            output += '<h3>1. Extension Loading:</h3>';
+            if (typeof shouldActivateExtensionEarly === 'function') {
+                output += '✅ shouldActivateExtensionEarly function found<br>';
             } else {
-                console.log('❌ Extension not detected on test page');
-                console.log('Make sure you are on kalshi.com domain for the extension to work');
+                output += '❌ shouldActivateExtensionEarly function NOT found<br>';
             }
-        }, 2000);
+            
+            if (typeof shouldActivateExtension === 'function') {
+                output += '✅ shouldActivateExtension function found<br>';
+            } else {
+                output += '❌ shouldActivateExtension function NOT found<br>';
+            }
+            
+            if (typeof settings !== 'undefined') {
+                output += '✅ settings object found: ' + JSON.stringify(settings) + '<br>';
+            } else {
+                output += '❌ settings object NOT found<br>';
+            }
+            
+            // Test 2: Check console for errors
+            output += '<h3>2. Console Check:</h3>';
+            output += 'Check browser console (F12) for any JavaScript errors<br>';
+            
+            // Test 3: Check if extension is active
+            output += '<h3>3. Extension Activation:</h3>';
+            if (typeof shouldActivateExtension === 'function') {
+                try {
+                    const isActive = shouldActivateExtension();
+                    output += 'shouldActivateExtension(): ' + isActive + '<br>';
+                    output += 'Current URL: ' + window.location.href + '<br>';
+                } catch (error) {
+                    output += '❌ Error calling shouldActivateExtension(): ' + error.message + '<br>';
+                }
+            }
+            
+            // Test 4: Check if processing functions exist
+            output += '<h3>4. Processing Functions:</h3>';
+            if (typeof processPage === 'function') {
+                output += '✅ processPage function found<br>';
+            } else {
+                output += '❌ processPage function NOT found<br>';
+            }
+            
+            if (typeof processOddsNodes === 'function') {
+                output += '✅ processOddsNodes function found<br>';
+            } else {
+                output += '❌ processOddsNodes function NOT found<br>';
+            }
+            
+            // Test 5: Manual processing test
+            output += '<h3>5. Manual Processing Test:</h3>';
+            if (typeof processOddsNodes === 'function') {
+                try {
+                    output += 'Attempting to call processOddsNodes()...<br>';
+                    processOddsNodes();
+                    output += '✅ processOddsNodes() called successfully<br>';
+                } catch (error) {
+                    output += '❌ Error calling processOddsNodes(): ' + error.message + '<br>';
+                }
+            }
+            
+            results.innerHTML = output;
+        }
+        
+        // Run test after a short delay to ensure extension has loaded
+        setTimeout(testExtensionLoading, 1000);
     </script>
 </body>
 </html>
