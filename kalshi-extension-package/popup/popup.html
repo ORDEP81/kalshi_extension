@@ -10,7 +10,7 @@
   <div class="popup-container">
     <header class="popup-header">
       <h1>Kalshi American Odds</h1>
-      <p>Settings for odds display and limit-order helper</p>
+      <p>Settings for odds display format</p>
     </header>
 
     <main class="popup-content">
@@ -23,38 +23,16 @@
           </label>
           <label>
             <input type="radio" name="displayMode" value="rawAmerican">
-            <span>Raw American odds</span>
+            <span>American odds</span>
           </label>
           <label>
-            <input type="radio" name="displayMode" value="afterFeeAmerican">
-            <span>After-fee American odds</span>
+            <input type="radio" name="displayMode" value="fractional">
+            <span>Fractional odds</span>
           </label>
-        </div>
-      </section>
-
-      <section class="setting-group">
-        <h3>Fee Calculation</h3>
-        <div class="checkbox-group">
           <label>
-            <input type="checkbox" id="fallbackEstimateEnabled">
-            <span>Enable fallback fee estimation</span>
+            <input type="radio" name="displayMode" value="decimal">
+            <span>Decimal odds</span>
           </label>
-          <p class="setting-description">
-            When ticket fee cannot be read, estimate using published schedule
-          </p>
-        </div>
-      </section>
-
-      <section class="setting-group">
-        <h3>Limit Order Helper</h3>
-        <div class="checkbox-group">
-          <label>
-            <input type="checkbox" id="helperPanelEnabled">
-            <span>Show helper panel for limit orders</span>
-          </label>
-          <p class="setting-description">
-            Display price conversion helper when placing limit orders
-          </p>
         </div>
       </section>
     </main>

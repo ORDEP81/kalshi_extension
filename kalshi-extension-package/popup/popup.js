@@ -5,9 +5,7 @@
 
 // Default settings
 const defaultSettings = {
-  displayMode: 'rawAmerican',
-  fallbackEstimateEnabled: false,
-  helperPanelEnabled: true
+  displayMode: 'rawAmerican'
 };
 
 let currentSettings = { ...defaultSettings };
@@ -49,17 +47,6 @@ function updateUI() {
     const defaultRadio = document.querySelector(`input[name="displayMode"][value="${defaultSettings.displayMode}"]`);
     if (defaultRadio) defaultRadio.checked = true;
   }
-
-  // Update checkboxes
-  const fallbackCheckbox = document.getElementById('fallbackEstimateEnabled');
-  if (fallbackCheckbox) {
-    fallbackCheckbox.checked = currentSettings.fallbackEstimateEnabled;
-  }
-
-  const helperPanelCheckbox = document.getElementById('helperPanelEnabled');
-  if (helperPanelCheckbox) {
-    helperPanelCheckbox.checked = currentSettings.helperPanelEnabled;
-  }
 }
 
 /**
@@ -72,7 +59,7 @@ function setupEventListeners() {
   }
 
   // Real-time validation and visual feedback
-  const inputs = document.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+  const inputs = document.querySelectorAll('input[type="radio"]');
   inputs.forEach(input => {
     input.addEventListener('change', () => {
       validateForm();
@@ -143,7 +130,7 @@ function addVisualFeedback(input) {
  * Validate form inputs
  */
 function validateForm() {
-  const isValid = validateRadioGroups() && validateCheckboxes();
+  const isValid = validateRadioGroups();
   
   const saveButton = document.getElementById('saveSettings');
   if (saveButton) {
@@ -170,14 +157,6 @@ function validateRadioGroups() {
   return true;
 }
 
-/**
- * Validate checkboxes (currently just ensures they exist)
- */
-function validateCheckboxes() {
-  const fallbackCheckbox = document.getElementById('fallbackEstimateEnabled');
-  const helperPanelCheckbox = document.getElementById('helperPanelEnabled');
-  return fallbackCheckbox !== null && helperPanelCheckbox !== null;
-}
 
 /**
  * Save settings to storage
@@ -190,13 +169,9 @@ async function saveSettings() {
 
     // Collect current form values
     const displayMode = document.querySelector('input[name="displayMode"]:checked')?.value || defaultSettings.displayMode;
-    const fallbackEstimateEnabled = document.getElementById('fallbackEstimateEnabled')?.checked || false;
-    const helperPanelEnabled = document.getElementById('helperPanelEnabled')?.checked || true;
 
     const newSettings = {
-      displayMode,
-      fallbackEstimateEnabled,
-      helperPanelEnabled
+      displayMode
     };
 
     // Validate setting values
@@ -225,15 +200,14 @@ async function saveSettings() {
  */
 function validateSettingValues(settings) {
   const validValues = {
-    displayMode: ['percent', 'rawAmerican', 'afterFeeAmerican']
+    displayMode: ['percent', 'rawAmerican', 'fractional', 'decimal']
   };
 
   for (const [key, value] of Object.entries(settings)) {
-    if (key === 'fallbackEstimateEnabled' || key === 'helperPanelEnabled') {
-      if (typeof value !== 'boolean') {
-        console.error(`Invalid ${key} value:`, value);
-        return false;
-      }
+    if (key === 'showSides' || key === 'rounding' || key === 'helperPanelEnabled' || key === 'fallbackEstimateEnabled') {
+      // Ignore legacy settings that are no longer used
+      console.log(`Ignoring legacy setting: ${key}`);
+      continue;
     } else if (validValues[key] && !validValues[key].includes(value)) {
       console.error(`Invalid ${key} value:`, value);
       return false;

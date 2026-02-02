@@ -14,9 +14,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
     // Set default settings on first install
     const defaultSettings = {
-      displayMode: 'rawAmerican',
-      fallbackEstimateEnabled: false,
-      helperPanelEnabled: true
+      displayMode: 'rawAmerican'
     };
     
     chrome.storage.sync.set(defaultSettings).then(() => {
@@ -68,7 +66,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
  */
 function validateSettings(settings) {
   const validValues = {
-    displayMode: ['percent', 'rawAmerican', 'afterFeeAmerican']
+    displayMode: ['percent', 'rawAmerican', 'fractional', 'decimal']
   };
 
   if (!settings || typeof settings !== 'object') {
@@ -76,12 +74,7 @@ function validateSettings(settings) {
   }
 
   for (const [key, value] of Object.entries(settings)) {
-    if (key === 'fallbackEstimateEnabled' || key === 'helperPanelEnabled') {
-      if (typeof value !== 'boolean') {
-        console.error(`Invalid ${key} value:`, value);
-        return false;
-      }
-    } else if (key === 'showSides' || key === 'rounding') {
+    if (key === 'showSides' || key === 'rounding' || key === 'helperPanelEnabled' || key === 'fallbackEstimateEnabled') {
       // Ignore legacy settings that are no longer used
       console.log(`Ignoring legacy setting: ${key}`);
       continue;

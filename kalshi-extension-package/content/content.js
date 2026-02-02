@@ -1,6 +1,6 @@
 /**
  * Kalshi American Odds - Content Script
- * Injects American odds display and limit-order helper into Kalshi pages
+ * Displays American odds next to Kalshi percentages
  */
 
 // Early page detection check to prevent extension from running on excluded pages
@@ -537,15 +537,12 @@ window.KalshiLogger = KalshiLogger;
 
 // Extension state
 let settings = {
-  displayMode: 'rawAmerican', // percent | rawAmerican | afterFeeAmerican
-  feeSource: 'ticketFirst', // always ticketFirst + optional fallbackEstimateEnabled
-  fallbackEstimateEnabled: false,
-  helperPanelEnabled: false // Default to false until settings are loaded
+  displayMode: 'rawAmerican' // percent | rawAmerican | fractional | decimal
 };
 
 // Valid setting values for validation
 const validSettingValues = {
-  displayMode: ['percent', 'rawAmerican', 'afterFeeAmerican']
+  displayMode: ['percent', 'rawAmerican', 'fractional', 'decimal']
 };
 
 /**
@@ -555,17 +552,7 @@ function validateSettings(settingsToValidate) {
   KalshiLogger.debug('CONFIGURATION', 'Validating settings', { settings: settingsToValidate });
   
   for (const [key, value] of Object.entries(settingsToValidate)) {
-    if (key === 'fallbackEstimateEnabled' || key === 'helperPanelEnabled') {
-      if (typeof value !== 'boolean') {
-        KalshiLogger.warn('CONFIGURATION', `Invalid ${key} value: expected boolean`, {
-          key,
-          value,
-          expectedType: 'boolean',
-          actualType: typeof value
-        });
-        return false;
-      }
-    } else if (key === 'showSides' || key === 'rounding') {
+    if (key === 'showSides' || key === 'rounding' || key === 'helperPanelEnabled' || key === 'fallbackEstimateEnabled') {
       // Ignore legacy settings that are no longer used
       KalshiLogger.debug('CONFIGURATION', `Ignoring legacy setting: ${key}`);
       continue;
@@ -593,50 +580,12 @@ let observerStats = {
   processingErrors: 0
 };
 
-// Order ticket state tracking
-let ticketState = {
-  isOpen: false,
-  ticketElement: null,
-  lastTicketHash: null,
-  ticketObserver: null
-};
-
-// Helper panel state
-let helperPanelState = {
-  isVisible: false,
-  panelElement: null,
-  currentOdds: null,
-  currentSide: null,
-  suggestedPrice: null,
-  afterFeeOdds: null,
-  lastTicketData: null,
-  recalculateTimer: null, // Timer for debouncing recalculations (Task 5.3.2)
-  inputChangeTimer: null, // Timer for debouncing direct input changes (Task 5.3.2)
-  // Task 5.3.3: Fee information availability tracking
-  lastFeeSource: null,    // Track previous fee source for transition detection
-  lastFeeAvailability: null, // Track fee availability state changes
-  feeTransitionTimer: null   // Timer for handling fee transition updates
-};
-
-// Task 6.4.1: Fallback fee estimation detection state
-let fallbackFeeDetectionState = {
-  isUsingFallback: false,           // Current fallback usage status
-  fallbackDetectionHistory: [],     // History of fallback detection events
-  lastFallbackDetection: null,      // Timestamp of last fallback detection
-  fallbackUsageCount: 0,            // Count of fallback usage instances
-  fallbackReasons: [],              // Reasons why fallback was used
-  ticketFeeFailureCount: 0,         // Count of ticket fee parsing failures
-  estimationAccuracy: {             // Track estimation accuracy when possible
-    totalEstimations: 0,
-    accurateEstimations: 0,
-    averageError: 0
-  }
-};
-
 /**
- * Robust ticket element selectors and parsing functions
- * These functions implement pattern-based detection to avoid brittle classnames
+ * Get the effective display mode
  */
+function getEffectiveDisplayMode() {
+  return settings.displayMode;
+}
 
 /**
  * Parse all relevant data from an order ticket element with comprehensive logging
@@ -4846,6 +4795,81 @@ function shouldActivateExtension() {
 }
 
 /**
+ * Inject global CSS to ensure odds are always visible regardless of responsive breakpoints
+ */
+function injectGlobalCSS() {
+  const cssId = 'kalshi-ao-global-styles';
+  
+  // Remove existing styles if they exist
+  const existingStyles = document.getElementById(cssId);
+  if (existingStyles) {
+    existingStyles.remove();
+  }
+  
+  const css = `
+    /* Kalshi American Odds - Global Styles */
+    .kalshi-ao-odds-persistent {
+      display: inline !important;
+      visibility: visible !important;
+      opacity: 0.9 !important;
+      color: inherit !important;
+      font-size: 0.9em !important;
+      font-weight: normal !important;
+      margin-left: 4px !important;
+      white-space: nowrap !important;
+      pointer-events: none !important;
+      user-select: none !important;
+      position: static !important;
+      z-index: 999999 !important;
+      width: auto !important;
+      height: auto !important;
+      min-width: auto !important;
+      max-width: none !important;
+      min-height: auto !important;
+      max-height: none !important;
+      overflow: visible !important;
+      flex-shrink: 0 !important;
+      flex-grow: 0 !important;
+      flex-basis: auto !important;
+      line-height: inherit !important;
+    }
+    
+    /* Ensure odds are visible at all responsive breakpoints */
+    @media screen and (max-width: 1920px) {
+      .kalshi-ao-odds-persistent { display: inline !important; }
+    }
+    @media screen and (max-width: 1440px) {
+      .kalshi-ao-odds-persistent { display: inline !important; }
+    }
+    @media screen and (max-width: 1200px) {
+      .kalshi-ao-odds-persistent { display: inline !important; }
+    }
+    @media screen and (max-width: 992px) {
+      .kalshi-ao-odds-persistent { display: inline !important; }
+    }
+    @media screen and (max-width: 768px) {
+      .kalshi-ao-odds-persistent { display: inline !important; }
+    }
+    @media screen and (max-width: 576px) {
+      .kalshi-ao-odds-persistent { display: inline !important; }
+    }
+    
+    /* Override any potential hiding by Kalshi's CSS */
+    [data-kalshi-ao-odds="1"] {
+      display: inline !important;
+      visibility: visible !important;
+    }
+  `;
+  
+  const style = document.createElement('style');
+  style.id = cssId;
+  style.textContent = css;
+  document.head.appendChild(style);
+  
+  console.log('Global CSS injected for American odds visibility');
+}
+
+/**
  * Initialize the extension
  */
 async function init() {
@@ -4857,12 +4881,21 @@ async function init() {
   
   KalshiLogger.info('INITIALIZATION', 'Kalshi American Odds extension initializing');
   
+  // Inject global CSS to ensure odds are always visible
+  injectGlobalCSS();
+  
   // Wait for page to be fully loaded before processing
   await waitForPageLoad();
   
   await loadSettings();
   setupMutationObserver();
   setupHelperPanelPositioning();
+  
+  // Set up periodic check to ensure odds stay visible
+  setupPeriodicOddsCheck();
+  
+  // Set up mouse interaction monitoring
+  setupMouseInteractionMonitoring();
   
   // Setup cleanup on page unload
   window.addEventListener('beforeunload', cleanup);
@@ -4951,6 +4984,297 @@ async function loadSettings() {
 }
 
 /**
+ * Set up mouse interaction monitoring to detect when Kalshi updates content
+ */
+function setupMouseInteractionMonitoring() {
+  let mouseInteractionTimer = null;
+  let lastOddsCount = 0;
+  let interactionCount = 0;
+  
+  // Monitor mouse events that might trigger Kalshi's content updates
+  const mouseEvents = ['mouseenter', 'mouseover', 'click', 'focus'];
+  
+  // Track initial odds count
+  const updateOddsCount = () => {
+    lastOddsCount = document.querySelectorAll('[data-kalshi-ao-odds]').length;
+  };
+  updateOddsCount();
+  
+  mouseEvents.forEach(eventType => {
+    document.addEventListener(eventType, (event) => {
+      // Skip if not on Kalshi content areas
+      if (!event.target.closest('body')) return;
+      
+      interactionCount++;
+      
+      // Debounce the check to avoid excessive processing
+      if (mouseInteractionTimer) {
+        clearTimeout(mouseInteractionTimer);
+      }
+      
+      // Use progressive delays - longer delays for repeated interactions
+      const baseDelay = 300; // Increased from 100ms to give Kalshi more time
+      const maxDelay = 1500;
+      const delay = Math.min(baseDelay + (interactionCount * 100), maxDelay);
+      
+      mouseInteractionTimer = setTimeout(() => {
+        try {
+          // Check if odds disappeared after user interaction
+          const currentOdds = document.querySelectorAll('[data-kalshi-ao-odds]');
+          const currentOddsCount = currentOdds.length;
+          
+          // If we lost significant odds, re-process immediately
+          if (currentOddsCount < lastOddsCount * 0.5 && shouldActivateExtension() && getEffectiveDisplayMode() !== 'percent') {
+            console.log(`Significant odds loss detected (${lastOddsCount} → ${currentOddsCount}), re-processing...`);
+            processOddsNodes();
+            updateOddsCount();
+          } else if (currentOddsCount === 0 && shouldActivateExtension() && getEffectiveDisplayMode() !== 'percent') {
+            console.log('All odds disappeared after mouse interaction, re-processing...');
+            processOddsNodes();
+            updateOddsCount();
+          } else {
+            // Check for missing odds with a more thorough approach
+            checkForMissingOddsEnhanced();
+            updateOddsCount();
+          }
+          
+          // Reset interaction count after successful processing
+          interactionCount = Math.max(0, interactionCount - 1);
+          
+        } catch (error) {
+          console.error('Error in mouse interaction monitoring:', error);
+        }
+      }, delay);
+      
+    }, { passive: true });
+  });
+  
+  // Also monitor for focus events on the window (when user returns to tab)
+  window.addEventListener('focus', () => {
+    setTimeout(() => {
+      if (shouldActivateExtension() && getEffectiveDisplayMode() !== 'percent') {
+        checkForMissingOddsEnhanced();
+      }
+    }, 200);
+  });
+  
+  // Also monitor for page visibility changes
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      // Page became visible again, check for missing odds
+      setTimeout(() => {
+        checkForMissingOddsEnhanced();
+      }, 500);
+    }
+  });
+  
+  console.log('Enhanced mouse interaction monitoring set up');
+}
+
+/**
+ * Set up periodic check to ensure odds stay visible on dynamic pages
+ */
+function setupPeriodicOddsCheck() {
+  // Check every 1 second for missing odds (more frequent for better responsiveness)
+  setInterval(() => {
+    // Only check if extension should be active and display mode is correct
+    if (!shouldActivateExtension()) return;
+    if (getEffectiveDisplayMode() === 'percent') return;
+    
+    // Quick check - count existing odds vs expected percentages
+    const existingOdds = document.querySelectorAll('[data-kalshi-ao-odds]');
+    const percentagePattern = /^(100|[0-9]{1,2})%$/;
+    const pricePattern = /^\$0\.\d{2}$|^\$1\.00$/;
+    
+    let expectedOddsCount = 0;
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    let node;
+    while (node = walker.nextNode()) {
+      const text = node.textContent.trim();
+      if (percentagePattern.test(text) || pricePattern.test(text)) {
+        expectedOddsCount++;
+      }
+    }
+    
+    // If we're missing more than 20% of expected odds, trigger a reprocess
+    const missingPercentage = expectedOddsCount > 0 ? 
+      (expectedOddsCount - existingOdds.length) / expectedOddsCount : 0;
+    
+    if (missingPercentage > 0.2) {
+      console.log(`Detected ${Math.round(missingPercentage * 100)}% missing odds, reprocessing...`);
+      checkForMissingOdds();
+    }
+    
+  }, 1000); // Check every 1 second
+}
+
+/**
+ * Check if odds have disappeared and need to be re-added
+ */
+function checkForMissingOdds() {
+  // Debounce this check to avoid excessive processing
+  if (checkForMissingOdds.timer) {
+    clearTimeout(checkForMissingOdds.timer);
+  }
+  
+  checkForMissingOdds.timer = setTimeout(() => {
+    try {
+      // Only check if extension should be active and display mode is correct
+      if (!shouldActivateExtension()) return;
+      if (getEffectiveDisplayMode() !== 'rawAmerican') return;
+      
+      // Find percentages that should have odds but don't
+      const percentagePattern = /^(100|[0-9]{1,2})%$/;
+      const pricePattern = /^\$0\.\d{2}$|^\$1\.00$/;
+      
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        null,
+        false
+      );
+      
+      let missingOddsCount = 0;
+      let node;
+      
+      while (node = walker.nextNode()) {
+        try {
+          const text = node.textContent.trim();
+          const parent = node.parentElement;
+          
+          if (!parent) continue;
+          
+          // Check if this text matches our patterns
+          if (percentagePattern.test(text) || pricePattern.test(text)) {
+            // Check if parent already has odds
+            const hasOdds = parent.querySelector('[data-kalshi-ao-odds]') || 
+                           parent.hasAttribute('data-kalshi-ao');
+            
+            if (!hasOdds) {
+              // This percentage/price is missing odds - re-process it
+              processProbabilityTextNode(node);
+              missingOddsCount++;
+            }
+          }
+        } catch (nodeError) {
+          console.debug('Error processing node in checkForMissingOdds:', nodeError);
+          continue; // Skip this node and continue with others
+        }
+      }
+      
+      if (missingOddsCount > 0) {
+        console.log(`Re-added ${missingOddsCount} missing American odds`);
+      }
+      
+    } catch (error) {
+      console.error('Error checking for missing odds:', error);
+    }
+  }, 500); // Wait 500ms before checking
+}
+
+/**
+ * Enhanced version of checkForMissingOdds with better detection and recovery
+ */
+function checkForMissingOddsEnhanced() {
+  // Debounce this check to avoid excessive processing
+  if (checkForMissingOddsEnhanced.timer) {
+    clearTimeout(checkForMissingOddsEnhanced.timer);
+  }
+  
+  checkForMissingOddsEnhanced.timer = setTimeout(() => {
+    try {
+      // Only check if extension should be active and display mode is correct
+      if (!shouldActivateExtension()) return;
+      if (getEffectiveDisplayMode() !== 'rawAmerican') return;
+      
+      // Find percentages that should have odds but don't
+      const percentagePattern = /^(100|[0-9]{1,2})%$/;
+      const pricePattern = /^\$0\.\d{2}$|^\$1\.00$/;
+      
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        null,
+        false
+      );
+      
+      let missingOddsCount = 0;
+      let totalPotentialOdds = 0;
+      let node;
+      const nodesToProcess = [];
+      
+      // First pass: collect all nodes that need processing
+      while (node = walker.nextNode()) {
+        try {
+          const text = node.textContent.trim();
+          const parent = node.parentElement;
+          
+          if (!parent) continue;
+          
+          // Check if this text matches our patterns
+          if (percentagePattern.test(text) || pricePattern.test(text)) {
+            totalPotentialOdds++;
+            
+            // Check if parent already has odds
+            const hasOdds = parent.querySelector('[data-kalshi-ao-odds]') || 
+                           parent.hasAttribute('data-kalshi-ao');
+            
+            if (!hasOdds) {
+              nodesToProcess.push(node);
+              missingOddsCount++;
+            }
+          }
+        } catch (nodeError) {
+          console.debug('Error processing node in checkForMissingOddsEnhanced:', nodeError);
+          continue; // Skip this node and continue with others
+        }
+      }
+      
+      // Second pass: process missing odds in batches to avoid overwhelming the DOM
+      if (nodesToProcess.length > 0) {
+        const batchSize = 10;
+        let processed = 0;
+        
+        const processBatch = () => {
+          const batch = nodesToProcess.slice(processed, processed + batchSize);
+          
+          batch.forEach(nodeToProcess => {
+            try {
+              // Double-check the node is still valid and in DOM
+              if (nodeToProcess.parentElement && document.contains(nodeToProcess)) {
+                processProbabilityTextNode(nodeToProcess);
+              }
+            } catch (nodeError) {
+              console.debug('Error processing individual node:', nodeError);
+            }
+          });
+          
+          processed += batch.length;
+          
+          // Process next batch if there are more nodes
+          if (processed < nodesToProcess.length) {
+            setTimeout(processBatch, 50); // Small delay between batches
+          } else {
+            console.log(`Enhanced check: Re-added ${missingOddsCount} missing American odds (${totalPotentialOdds} total potential)`);
+          }
+        };
+        
+        processBatch();
+      }
+      
+    } catch (error) {
+      console.error('Error in enhanced missing odds check:', error);
+    }
+  }, 300); // Shorter delay for enhanced version
+}
+
+/**
  * Set up MutationObserver to watch for DOM changes
  */
 function setupMutationObserver() {
@@ -5018,6 +5342,10 @@ function setupMutationObserver() {
       if (shouldProcess) {
         debouncedProcessPage();
       }
+      
+      // Also check if existing odds disappeared and need to be re-added
+      checkForMissingOdds();
+      
     } catch (error) {
       observerStats.processingErrors++;
       console.error('Error in MutationObserver callback:', error);
@@ -5060,7 +5388,7 @@ function debouncedProcessPage() {
       console.error('Error in debounced page processing:', error);
       observerStats.processingErrors++;
     }
-  }, 150); // Slightly increased debounce time for better performance
+  }, 50); // Reduced debounce time for faster response
 }
 
 /**
@@ -5468,13 +5796,45 @@ function clearHelperPanelData() {
   }
 }
 function clearExistingOdds() {
-  // Remove all existing odds elements
+  // Only remove odds elements that are truly orphaned (parent no longer exists)
   const existingOdds = document.querySelectorAll('[data-kalshi-ao-odds]');
-  existingOdds.forEach(element => element.remove());
-  
-  // Clear processed markers so nodes can be reprocessed
-  const processedElements = document.querySelectorAll('[data-kalshi-ao]');
-  processedElements.forEach(element => element.removeAttribute('data-kalshi-ao'));
+  existingOdds.forEach(element => {
+    // Check if the parent element still exists and contains valid probability text
+    const parent = element.parentElement;
+    if (!parent || !document.contains(parent)) {
+      element.remove();
+      return;
+    }
+    
+    // Check if parent still has valid probability text
+    const walker = document.createTreeWalker(
+      parent,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    let hasValidProbability = false;
+    let node;
+    while (node = walker.nextNode()) {
+      const text = node.textContent.trim();
+      const percentPattern = /^(100|[0-9]{1,2})%$/;
+      const pricePattern = /^\$0\.\d{2}$|^\$1\.00$/;
+      
+      if (percentPattern.test(text) || pricePattern.test(text)) {
+        hasValidProbability = true;
+        break;
+      }
+    }
+    
+    // Only remove if no valid probability found
+    if (!hasValidProbability) {
+      element.remove();
+      if (parent.hasAttribute('data-kalshi-ao')) {
+        parent.removeAttribute('data-kalshi-ao');
+      }
+    }
+  });
 }
 
 /**
@@ -5489,14 +5849,14 @@ function processOddsNodes() {
   
   const effectiveMode = getEffectiveDisplayMode();
   console.log('Processing odds nodes with displayMode:', settings.displayMode, 'effective:', effectiveMode);
+  console.log('Current URL:', window.location.href);
   
   // Clear existing odds displays first
   clearExistingOdds();
   
-  // Only show odds for rawAmerican mode (or when cycling to rawAmerican)
-  // Note: afterFeeAmerican will be handled in the ticket processing
-  if (effectiveMode !== 'rawAmerican') {
-    console.log('Skipping raw odds display - effective mode is', effectiveMode);
+  // Show odds for all non-percent modes
+  if (effectiveMode === 'percent') {
+    console.log('Skipping odds display - showing original percentages');
     return;
   }
   
@@ -5528,10 +5888,16 @@ function processOddsNodes() {
     textNodes.push(node);
   }
   
+  console.log(`Found ${textNodes.length} text nodes to process`);
+  
   // Process each text node for probability patterns
+  let processedCount = 0;
   textNodes.forEach(textNode => {
-    processProbabilityTextNode(textNode);
+    const result = processProbabilityTextNode(textNode);
+    if (result) processedCount++;
   });
+  
+  console.log(`Processed ${processedCount} probability nodes`);
 }
 
 /**
@@ -5541,8 +5907,8 @@ function processProbabilityTextNode(textNode) {
   const text = textNode.textContent.trim();
   if (!text) return;
   
-  // Pattern for percentage (e.g., "45%", "12%", "100%")
-  const percentPattern = /^(100|[1-9]?\d)%$/;
+  // Pattern for percentage (e.g., "45%", "12%", "100%", "0%")
+  const percentPattern = /^(100|[0-9]{1,2})%$/;
   
   // Pattern for price (e.g., "$0.45", "$0.12", "$1.00")
   const pricePattern = /^\$0\.\d{2}$|^\$1\.00$/;
@@ -5570,7 +5936,10 @@ function processProbabilityTextNode(textNode) {
   // If we found a valid probability, inject odds
   if (probability !== null && matchType) {
     injectOddsForNode(textNode, probability, matchType);
+    return true; // Indicate that we processed this node
   }
+  
+  return false; // Indicate that we didn't process this node
 }
 
 /**
@@ -5592,17 +5961,34 @@ function injectOddsForNode(textNode, probability, matchType) {
   // Mark as processed
   parentElement.setAttribute('data-kalshi-ao', '1');
   
-  // Calculate American odds
-  const americanOdds = probabilityToAmericanOdds(probability);
+  // Calculate odds based on display mode
+  const displayMode = getEffectiveDisplayMode();
+  let odds = null;
+  let oddsType = displayMode;
+  
+  switch (displayMode) {
+    case 'rawAmerican':
+      odds = probabilityToAmericanOdds(probability);
+      break;
+    case 'fractional':
+      odds = probabilityToFractionalOdds(probability);
+      break;
+    case 'decimal':
+      odds = probabilityToDecimalOdds(probability);
+      break;
+    default:
+      console.debug('Skipping odds injection for display mode:', displayMode);
+      return;
+  }
   
   // Skip if odds calculation failed
-  if (americanOdds === null) {
-    console.warn('Failed to calculate American odds for probability:', probability);
+  if (odds === null) {
+    console.debug(`Skipping ${oddsType} odds for edge case probability:`, probability);
     return;
   }
   
   // Create odds display element
-  const oddsElement = createOddsElement(americanOdds, matchType, probability);
+  const oddsElement = createOddsElement(odds, matchType, probability, oddsType);
   
   // Inject the odds element
   try {
@@ -5616,38 +6002,57 @@ function injectOddsForNode(textNode, probability, matchType) {
  * Find a stable container for odds injection
  */
 function findStableContainer(element) {
-  let current = element;
-  let maxDepth = 5; // Limit traversal depth
-  
-  while (current && maxDepth > 0) {
-    // Look for elements that seem like stable row containers
-    const tagName = current.tagName?.toLowerCase();
-    const className = current.className || '';
+  try {
+    let current = element;
+    let maxDepth = 5; // Limit traversal depth
     
-    // Common container patterns (avoid overly specific selectors)
-    if (tagName === 'tr' || 
-        tagName === 'li' || 
-        className.includes('row') || 
-        className.includes('item') ||
-        className.includes('card') ||
-        current.getAttribute('role') === 'row') {
-      return current;
+    while (current && maxDepth > 0) {
+      // Look for elements that seem like stable row containers
+      const tagName = current.tagName?.toLowerCase();
+      const className = current.className;
+      
+      // Safely convert className to string for checking
+      const classNameStr = (className && typeof className === 'string') ? className : 
+                          (className && typeof className.toString === 'function') ? className.toString() : '';
+      
+      // Common container patterns (avoid overly specific selectors)
+      if (tagName === 'tr' || 
+          tagName === 'li' || 
+          classNameStr.includes('row') || 
+          classNameStr.includes('item') ||
+          classNameStr.includes('card') ||
+          current.getAttribute('role') === 'row') {
+        return current;
+      }
+      
+      current = current.parentElement;
+      maxDepth--;
     }
     
-    current = current.parentElement;
-    maxDepth--;
+    // Fallback to the original parent if no stable container found
+    return element;
+  } catch (error) {
+    console.debug('Error in findStableContainer:', error);
+    // Return the original element as fallback
+    return element;
   }
-  
-  // Fallback to the original parent if no stable container found
-  return element;
 }
 
 /**
  * Convert probability to American odds
  */
 function probabilityToAmericanOdds(p) {
+  // Handle edge cases more gracefully
   if (p <= 0 || p >= 1) {
-    return null; // Invalid probability
+    return null; // Invalid probability (0%, 100%, or out of range)
+  }
+  
+  // Handle very close to 0 or 1 (like 0.5% or 99.5%)
+  if (p < 0.005) {
+    return 19900; // Very high positive odds for very low probability
+  }
+  if (p > 0.995) {
+    return -19900; // Very high negative odds for very high probability
   }
   
   let odds;
@@ -5661,6 +6066,111 @@ function probabilityToAmericanOdds(p) {
   
   // Apply integer rounding (no rounding options)
   return Math.round(odds);
+}
+
+/**
+ * Convert probability to fractional odds
+ */
+function probabilityToFractionalOdds(p) {
+  // Handle edge cases
+  if (p <= 0 || p >= 1) {
+    return null; // Invalid probability
+  }
+  
+  // Handle very close to 0 or 1
+  if (p < 0.005) {
+    return "1999/1"; // Very high fractional odds for very low probability
+  }
+  if (p > 0.995) {
+    return "1/1999"; // Very low fractional odds for very high probability
+  }
+  
+  // Calculate fractional odds: (1-p)/p
+  const numerator = 1 - p;
+  const denominator = p;
+  
+  // Convert to simple fraction
+  return simplifyFraction(numerator, denominator);
+}
+
+/**
+ * Convert probability to decimal odds
+ */
+function probabilityToDecimalOdds(p) {
+  // Handle edge cases
+  if (p <= 0 || p >= 1) {
+    return null; // Invalid probability
+  }
+  
+  // Handle very close to 0 or 1
+  if (p < 0.005) {
+    return 200.00; // Very high decimal odds for very low probability
+  }
+  if (p > 0.995) {
+    return 1.01; // Very low decimal odds for very high probability
+  }
+  
+  // Calculate decimal odds: 1/p
+  const decimalOdds = 1 / p;
+  
+  // Round to 2 decimal places
+  return Math.round(decimalOdds * 100) / 100;
+}
+
+/**
+ * Simplify a fraction to its lowest terms
+ */
+function simplifyFraction(numerator, denominator) {
+  // Convert to integers by multiplying by a large number and rounding
+  const scale = 10000;
+  let num = Math.round(numerator * scale);
+  let den = Math.round(denominator * scale);
+  
+  // Find GCD
+  const gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
+  const divisor = gcd(Math.abs(num), Math.abs(den));
+  
+  num = num / divisor;
+  den = den / divisor;
+  
+  // Ensure denominator is positive
+  if (den < 0) {
+    num = -num;
+    den = -den;
+  }
+  
+  // For very small fractions, use common betting fractions
+  if (den > 100) {
+    // Try to find a close simple fraction
+    const commonFractions = [
+      [1, 10], [1, 9], [1, 8], [1, 7], [1, 6], [1, 5], [1, 4], [2, 7], [1, 3], [2, 5],
+      [1, 2], [3, 5], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9], [9, 10],
+      [1, 1], [11, 10], [6, 5], [5, 4], [4, 3], [3, 2], [8, 5], [5, 3], [9, 5], [2, 1],
+      [9, 4], [5, 2], [3, 1], [7, 2], [4, 1], [9, 2], [5, 1], [6, 1], [7, 1], [8, 1], [9, 1], [10, 1]
+    ];
+    
+    const targetRatio = num / den;
+    let bestFraction = [num, den];
+    let bestDifference = Infinity;
+    
+    for (const [n, d] of commonFractions) {
+      const ratio = n / d;
+      const difference = Math.abs(ratio - targetRatio);
+      if (difference < bestDifference && difference < 0.05) { // Within 5% tolerance
+        bestDifference = difference;
+        bestFraction = [n, d];
+      }
+    }
+    
+    [num, den] = bestFraction;
+  }
+  
+  // Format as string
+  if (den === 1) {
+    return `${num}/1`;
+  }
+  
+  return `${num}/${den}`;
 }
 
 /**
@@ -6012,16 +6522,29 @@ function calculateAfterFeeOddsFromTicket(ticketData, options = {}) {
 /**
  * Create odds display element
  */
-function createOddsElement(americanOdds, matchType, probability) {
+function createOddsElement(odds, matchType, probability, oddsType = 'rawAmerican') {
   const oddsElement = document.createElement('span');
   oddsElement.className = 'kalshi-ao-odds';
   
-  // Format odds display - always show integer odds (no rounding options)
+  // Format odds display based on type
   let oddsText;
-  const roundedOdds = Math.round(americanOdds);
-  oddsText = roundedOdds > 0 ? `+${roundedOdds}` : `${roundedOdds}`;
   
-  // Always show only YES odds
+  switch (oddsType) {
+    case 'rawAmerican':
+      const roundedOdds = Math.round(odds);
+      oddsText = roundedOdds > 0 ? `+${roundedOdds}` : `${roundedOdds}`;
+      break;
+    case 'fractional':
+      oddsText = odds; // Already formatted as string like "3/2"
+      break;
+    case 'decimal':
+      oddsText = odds.toFixed(2);
+      break;
+    default:
+      oddsText = String(odds);
+  }
+  
+  // Display odds with appropriate formatting
   oddsElement.textContent = ` (${oddsText})`;
   
   // Apply comprehensive click-safe styling with enhanced specificity
@@ -6031,10 +6554,10 @@ function createOddsElement(americanOdds, matchType, probability) {
     -webkit-user-select: none !important;
     -moz-user-select: none !important;
     -ms-user-select: none !important;
-    color: #666;
-    font-size: 0.9em;
-    font-weight: normal;
-    margin-left: 4px;
+    color: inherit !important;
+    font-size: 0.9em !important;
+    font-weight: normal !important;
+    margin-left: 4px !important;
     cursor: default !important;
     outline: none !important;
     border: none !important;
@@ -6042,13 +6565,31 @@ function createOddsElement(americanOdds, matchType, probability) {
     text-decoration: none !important;
     display: inline !important;
     position: static !important;
-    z-index: auto !important;
+    z-index: 999999 !important;
+    opacity: 0.9 !important;
+    visibility: visible !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    white-space: nowrap !important;
+    line-height: inherit !important;
+    min-width: auto !important;
+    max-width: none !important;
+    min-height: auto !important;
+    max-height: none !important;
+    flex-shrink: 0 !important;
+    flex-grow: 0 !important;
+    flex-basis: auto !important;
   `;
+  
+  // Add CSS class for additional styling control
+  oddsElement.classList.add('kalshi-ao-odds-persistent');
   
   // Add data attributes for identification
   oddsElement.setAttribute('data-kalshi-ao-odds', '1');
   oddsElement.setAttribute('data-match-type', matchType);
   oddsElement.setAttribute('data-display-mode', settings.displayMode);
+  oddsElement.setAttribute('data-odds-type', oddsType);
   
   // Ensure element cannot receive focus
   oddsElement.setAttribute('tabindex', '-1');
@@ -6056,6 +6597,15 @@ function createOddsElement(americanOdds, matchType, probability) {
   
   // Add additional safeguards against interaction
   preventInteraction(oddsElement);
+  
+  // Force a reflow to ensure visibility
+  setTimeout(() => {
+    if (oddsElement.parentElement) {
+      oddsElement.style.display = 'inline';
+      // Trigger reflow
+      oddsElement.offsetHeight;
+    }
+  }, 0);
   
   return oddsElement;
 }
