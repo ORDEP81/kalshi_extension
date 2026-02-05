@@ -469,11 +469,11 @@ const KalshiLogger = {
         processedNodesCount: processedNodes ? 'WeakSet (cannot count)' : 0,
         observerActive: !!mutationObserver,
         ticketState: ticketState,
-        helperPanelState: {
+        helperPanelState: typeof helperPanelState !== 'undefined' ? {
           isVisible: helperPanelState.isVisible,
           hasCurrentOdds: !!helperPanelState.currentOdds,
           hasCurrentSide: !!helperPanelState.currentSide
-        }
+        } : { error: 'helperPanelState not initialized' }
       }
     };
   },
@@ -578,6 +578,42 @@ let observerStats = {
   mutationsProcessed: 0,
   lastProcessTime: 0,
   processingErrors: 0
+};
+
+// Helper panel state (was missing - causing ReferenceError)
+let helperPanelState = {
+  isVisible: false,
+  panelElement: null,
+  currentOdds: null,
+  currentSide: null,
+  suggestedPrice: null,
+  afterFeeOdds: null,
+  lastTicketData: null,
+  inputChangeTimer: null,
+  recalculateTimer: null
+};
+
+// Ticket state (was missing - causing ReferenceError)
+let ticketState = {
+  isOpen: false,
+  ticketElement: null,
+  ticketObserver: null,
+  lastTicketHash: null
+};
+
+// Fallback fee detection state (was missing - causing ReferenceError)
+let fallbackFeeDetectionState = {
+  isUsingFallback: false,
+  fallbackDetectionHistory: [],
+  lastFallbackDetection: null,
+  fallbackUsageCount: 0,
+  fallbackReasons: [],
+  ticketFeeFailureCount: 0,
+  estimationAccuracy: {
+    totalEstimations: 0,
+    accurateEstimations: 0,
+    averageError: 0
+  }
 };
 
 /**
@@ -1864,12 +1900,12 @@ const KalshiDebugger = {
         hasElement: !!ticketState.ticketElement,
         lastHash: ticketState.lastTicketHash
       },
-      helperPanelState: {
+      helperPanelState: typeof helperPanelState !== 'undefined' ? {
         isVisible: helperPanelState.isVisible,
         hasPanel: !!helperPanelState.panelElement,
         currentOdds: helperPanelState.currentOdds,
         currentSide: helperPanelState.currentSide
-      },
+      } : { error: 'helperPanelState not initialized' },
       processedNodes: 'WeakSet (cannot inspect)',
       mutationObserver: !!mutationObserver
     };
@@ -4891,8 +4927,8 @@ async function init() {
   setupMutationObserver();
   setupHelperPanelPositioning();
   
-  // Set up periodic check to ensure odds stay visible
-  setupPeriodicOddsCheck();
+  // Set up periodic check to ensure odds stay visible (DISABLED - was causing odds to disappear)
+  // setupPeriodicOddsCheck();
   
   // Set up mouse interaction monitoring
   setupMouseInteractionMonitoring();
@@ -5002,8 +5038,8 @@ function setupMouseInteractionMonitoring() {
   
   mouseEvents.forEach(eventType => {
     document.addEventListener(eventType, (event) => {
-      // Skip if not on Kalshi content areas
-      if (!event.target.closest('body')) return;
+      // Skip if not on Kalshi content areas - check if target is an element first
+      if (!event.target || typeof event.target.closest !== 'function' || !event.target.closest('body')) return;
       
       interactionCount++;
       
@@ -5388,7 +5424,7 @@ function debouncedProcessPage() {
       console.error('Error in debounced page processing:', error);
       observerStats.processingErrors++;
     }
-  }, 50); // Reduced debounce time for faster response
+  }, 200); // Increased debounce time to reduce flicker
 }
 
 /**
@@ -5472,8 +5508,15 @@ async function processPage() {
     const startTime = performance.now();
     console.log('Processing page with settings:', settings);
     
-    // Clean up any orphaned odds displays first
-    cleanupOrphanedOdds();
+    // DISABLED - cleanup was too aggressive and removing odds immediately after adding them
+    // This was causing the "odds disappearing after 10 seconds" issue
+    // Only clean up orphaned odds occasionally to prevent aggressive removal
+    // during dynamic content loading
+    // if (!processPage.lastCleanup || Date.now() - processPage.lastCleanup > 5000) {
+    //   console.log('Running periodic orphaned odds cleanup');
+    //   cleanupOrphanedOdds();
+    //   processPage.lastCleanup = Date.now();
+    // }
     
     processOddsNodes();
     // await processOrderTicket(); // Disabled - helper panel functionality removed
@@ -5503,6 +5546,7 @@ async function processPage() {
 
 /**
  * Clean up orphaned odds displays (odds without corresponding probability nodes)
+ * Made less aggressive to prevent premature removal during dynamic content loading
  */
 function cleanupOrphanedOdds() {
   const existingOdds = document.querySelectorAll('[data-kalshi-ao-odds]');
@@ -5510,17 +5554,39 @@ function cleanupOrphanedOdds() {
     // Check if the corresponding probability node still exists and is visible
     const parentContainer = oddsElement.closest('[data-kalshi-ao]');
     if (!parentContainer || !document.contains(parentContainer)) {
-      // Remove orphaned odds display
+      // Only remove if parent is completely gone from DOM
+      console.log('Removing orphaned odds - parent container not found');
       oddsElement.remove();
       return;
     }
     
-    // Check if the probability text is still valid
+    // More lenient check - only remove if parent is clearly invalid
+    // Don't remove during temporary content loading states
+    const parentStyle = window.getComputedStyle(parentContainer);
+    const isParentHidden = parentStyle.display === 'none' || parentStyle.visibility === 'hidden';
+    
+    if (isParentHidden) {
+      // Parent is hidden, but don't remove odds yet - might be temporary
+      console.log('Parent container hidden, keeping odds for now');
+      return;
+    }
+    
+    // Check if the probability text is still valid, but be more forgiving
     const probabilityText = getProbabilityTextFromContainer(parentContainer);
     if (!probabilityText) {
-      // Remove odds if probability text is no longer found
-      oddsElement.remove();
-      parentContainer.removeAttribute('data-kalshi-ao');
+      // Double-check by looking for any percentage or price text in the container
+      const containerText = parentContainer.textContent || '';
+      const hasPercentage = /\b\d{1,3}%\b/.test(containerText);
+      const hasPrice = /\$\d+\.\d{2}/.test(containerText);
+      
+      if (!hasPercentage && !hasPrice) {
+        // Only remove if we're really sure there's no relevant content
+        console.log('Removing odds - no probability content found after double-check');
+        oddsElement.remove();
+        parentContainer.removeAttribute('data-kalshi-ao');
+      } else {
+        console.log('Keeping odds - found percentage or price content in container');
+      }
     }
   });
 }
@@ -5795,6 +5861,30 @@ function clearHelperPanelData() {
     console.warn('Error clearing helper panel data:', error.message);
   }
 }
+function clearOrphanedOdds() {
+  // Ultra-robust version: Only remove odds elements that are truly orphaned
+  // but protect against aggressive removal
+  const existingOdds = document.querySelectorAll('[data-kalshi-ao-odds]');
+  existingOdds.forEach(element => {
+    const parent = element.parentElement;
+    
+    // Remove if parent doesn't exist or is not in document
+    if (!parent || !document.contains(parent)) {
+      element.remove();
+      return;
+    }
+    
+    // Remove if parent no longer has the processed marker
+    if (!parent.hasAttribute('data-kalshi-ao')) {
+      element.remove();
+      return;
+    }
+    
+    // Keep the odds element - it's still valid and protect it
+    protectOddsElement(element);
+  });
+}
+
 function clearExistingOdds() {
   // Only remove odds elements that are truly orphaned (parent no longer exists)
   const existingOdds = document.querySelectorAll('[data-kalshi-ao-odds]');
@@ -5851,8 +5941,8 @@ function processOddsNodes() {
   console.log('Processing odds nodes with displayMode:', settings.displayMode, 'effective:', effectiveMode);
   console.log('Current URL:', window.location.href);
   
-  // Clear existing odds displays first
-  clearExistingOdds();
+  // Only clear orphaned odds, don't clear all odds
+  clearOrphanedOdds();
   
   // Show odds for all non-percent modes
   if (effectiveMode === 'percent') {
@@ -6018,9 +6108,9 @@ function findStableContainer(element) {
       // Common container patterns (avoid overly specific selectors)
       if (tagName === 'tr' || 
           tagName === 'li' || 
-          classNameStr.includes('row') || 
-          classNameStr.includes('item') ||
-          classNameStr.includes('card') ||
+          (classNameStr && classNameStr.includes('row')) || 
+          (classNameStr && classNameStr.includes('item')) ||
+          (classNameStr && classNameStr.includes('card')) ||
           current.getAttribute('role') === 'row') {
         return current;
       }
@@ -10449,6 +10539,375 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
+}
+
+// ============================================================================
+// ULTRA-ROBUST ODDS PROTECTION SYSTEM
+// ============================================================================
+
+/**
+ * Ultra-robust protection system to prevent odds from being removed
+ * This system implements multiple layers of protection against aggressive DOM clearing
+ */
+
+// Global protection state
+let protectionSystem = {
+  isActive: false,
+  protectedElements: new WeakSet(),
+  protectionInterval: null,
+  removalAttempts: 0,
+  lastProtectionCheck: 0
+};
+
+/**
+ * Protect an odds element from removal attempts
+ */
+function protectOddsElement(element) {
+  if (!element || protectionSystem.protectedElements.has(element)) {
+    return; // Already protected
+  }
+  
+  // Mark as protected
+  protectionSystem.protectedElements.add(element);
+  element.setAttribute('data-kalshi-ao-protected', 'true');
+  
+  // Override remove method to prevent removal
+  const originalRemove = element.remove;
+  element.remove = function() {
+    protectionSystem.removalAttempts++;
+    console.log('🛡️ Blocked removal attempt on protected odds element', {
+      attempts: protectionSystem.removalAttempts,
+      element: element.textContent
+    });
+    
+    // Instead of removing, ensure element is still properly positioned
+    ensureOddsElementPositioning(element);
+    return false;
+  };
+  
+  // Override removeChild on parent
+  const parent = element.parentElement;
+  if (parent && parent.removeChild) {
+    const originalRemoveChild = parent.removeChild;
+    parent.removeChild = function(child) {
+      if (child === element) {
+        protectionSystem.removalAttempts++;
+        console.log('🛡️ Blocked removeChild attempt on protected odds element', {
+          attempts: protectionSystem.removalAttempts,
+          element: element.textContent
+        });
+        ensureOddsElementPositioning(element);
+        return child;
+      }
+      return originalRemoveChild.call(this, child);
+    };
+  }
+  
+  console.log('🛡️ Protected odds element:', element.textContent);
+}
+
+/**
+ * Ensure odds element is properly positioned and visible
+ */
+function ensureOddsElementPositioning(element) {
+  if (!element || !element.parentElement) return;
+  
+  // Ensure element is visible and properly styled
+  element.style.display = '';
+  element.style.visibility = 'visible';
+  element.style.opacity = '1';
+  
+  // Ensure it has the correct attributes
+  if (!element.hasAttribute('data-kalshi-ao-odds')) {
+    element.setAttribute('data-kalshi-ao-odds', 'true');
+  }
+}
+
+/**
+ * Start the continuous protection system
+ */
+function startProtectionSystem() {
+  if (protectionSystem.isActive) {
+    return; // Already active
+  }
+  
+  protectionSystem.isActive = true;
+  console.log('🛡️ Starting ultra-robust protection system');
+  
+  // Run protection checks every 2 seconds
+  protectionSystem.protectionInterval = setInterval(() => {
+    runProtectionCheck();
+  }, 2000);
+  
+  // Also run immediate check
+  runProtectionCheck();
+}
+
+/**
+ * Stop the protection system
+ */
+function stopProtectionSystem() {
+  if (!protectionSystem.isActive) {
+    return;
+  }
+  
+  protectionSystem.isActive = false;
+  
+  if (protectionSystem.protectionInterval) {
+    clearInterval(protectionSystem.protectionInterval);
+    protectionSystem.protectionInterval = null;
+  }
+  
+  console.log('🛡️ Stopped protection system');
+}
+
+/**
+ * Run a comprehensive protection check
+ */
+function runProtectionCheck() {
+  protectionSystem.lastProtectionCheck = Date.now();
+  
+  // Find all odds elements that should exist
+  const expectedOdds = document.querySelectorAll('[data-kalshi-ao]');
+  const actualOdds = document.querySelectorAll('[data-kalshi-ao-odds]');
+  
+  console.log(`🛡️ Protection check: ${expectedOdds.length} expected, ${actualOdds.length} actual odds`);
+  
+  // Check for missing odds and restore them
+  expectedOdds.forEach(processedElement => {
+    const hasOdds = processedElement.querySelector('[data-kalshi-ao-odds]') || 
+                   processedElement.nextElementSibling?.hasAttribute('data-kalshi-ao-odds');
+    
+    if (!hasOdds) {
+      console.log('🛡️ Detected missing odds, attempting restoration');
+      restoreOddsForElement(processedElement);
+    }
+  });
+  
+  // Protect all existing odds elements
+  actualOdds.forEach(oddsElement => {
+    protectOddsElement(oddsElement);
+  });
+  
+  // Log protection statistics
+  if (protectionSystem.removalAttempts > 0) {
+    console.log(`🛡️ Protection stats: ${protectionSystem.removalAttempts} removal attempts blocked`);
+  }
+}
+
+/**
+ * Restore odds for an element that lost them
+ */
+function restoreOddsForElement(processedElement) {
+  try {
+    // Find the probability text in this element
+    const walker = document.createTreeWalker(
+      processedElement,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    let node;
+    while (node = walker.nextNode()) {
+      const text = node.textContent.trim();
+      const percentPattern = /^(100|[0-9]{1,2})%$/;
+      const pricePattern = /^\$0\.\d{2}$|^\$1\.00$/;
+      
+      let probability = null;
+      let matchType = null;
+      
+      if (percentPattern.test(text)) {
+        const percentValue = parseInt(text.replace('%', ''));
+        if (percentValue >= 0 && percentValue <= 100) {
+          probability = percentValue / 100;
+          matchType = 'percent';
+        }
+      } else if (pricePattern.test(text)) {
+        const priceValue = parseFloat(text.replace('$', ''));
+        if (priceValue >= 0 && priceValue <= 1) {
+          probability = priceValue;
+          matchType = 'price';
+        }
+      }
+      
+      if (probability !== null && matchType) {
+        console.log('🛡️ Restoring odds for:', text);
+        
+        // Remove the processed marker to allow re-processing
+        processedElement.removeAttribute('data-kalshi-ao');
+        
+        // Re-inject odds
+        injectOddsForNode(node, probability, matchType);
+        break;
+      }
+    }
+  } catch (error) {
+    console.error('🛡️ Error restoring odds:', error);
+  }
+}
+
+/**
+ * Enhanced mutation observer with odds removal detection
+ */
+function setupUltraRobustMutationObserver() {
+  if (mutationObserver) {
+    mutationObserver.disconnect();
+  }
+
+  mutationObserver = new MutationObserver((mutations) => {
+    try {
+      observerStats.mutationsProcessed += mutations.length;
+      let shouldProcess = false;
+      let oddsRemovalDetected = false;
+      
+      mutations.forEach((mutation) => {
+        // Check for added nodes that might contain probability/price data
+        if (mutation.type === 'childList') {
+          // Check added nodes
+          if (mutation.addedNodes.length > 0) {
+            for (const node of mutation.addedNodes) {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                // Check if the added element or its descendants might contain probability data
+                if (containsProbabilityContent(node)) {
+                  shouldProcess = true;
+                  break;
+                }
+              }
+            }
+          }
+          
+          // Check for removed odds elements (ULTRA-ROBUST DETECTION)
+          if (mutation.removedNodes.length > 0) {
+            for (const node of mutation.removedNodes) {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                // Check if removed node was our odds element
+                if (node.hasAttribute?.('data-kalshi-ao-odds')) {
+                  console.log('🚨 ODDS REMOVAL DETECTED! Attempting immediate restoration...');
+                  oddsRemovalDetected = true;
+                  
+                  // Try to restore immediately
+                  const target = mutation.target;
+                  if (target && target.hasAttribute && target.hasAttribute('data-kalshi-ao')) {
+                    restoreOddsForElement(target);
+                  }
+                }
+                
+                // Check if removed node contained our odds
+                if (node.querySelector?.('[data-kalshi-ao-odds]')) {
+                  console.log('🚨 CONTAINER WITH ODDS REMOVED! Triggering full reprocessing...');
+                  oddsRemovalDetected = true;
+                  shouldProcess = true;
+                }
+                
+                // Standard processing check
+                if (node.hasAttribute?.('data-kalshi-ao') || 
+                   node.querySelector?.('[data-kalshi-ao]')) {
+                  shouldProcess = true;
+                }
+              }
+            }
+          }
+        }
+        
+        // Check for text content changes that might affect probability displays
+        if (mutation.type === 'characterData') {
+          const text = mutation.target.textContent?.trim();
+          if (text && (isProbabilityText(text) || isPriceText(text))) {
+            shouldProcess = true;
+          }
+        }
+        
+        // Check for attribute changes that might affect our processing
+        if (mutation.type === 'attributes') {
+          const element = mutation.target;
+          // If class or style changes might affect layout or visibility
+          if (mutation.attributeName === 'class' || 
+              mutation.attributeName === 'style' ||
+              mutation.attributeName === 'hidden') {
+            // Check if this element or its descendants contain probability content
+            if (element.nodeType === Node.ELEMENT_NODE && containsProbabilityContent(element)) {
+              shouldProcess = true;
+            }
+          }
+        }
+      });
+
+      // If odds removal was detected, run immediate protection check
+      if (oddsRemovalDetected) {
+        setTimeout(() => {
+          runProtectionCheck();
+        }, 100);
+      }
+
+      if (shouldProcess) {
+        debouncedProcessPage();
+      }
+      
+      // Also check if existing odds disappeared and need to be re-added
+      checkForMissingOdds();
+      
+    } catch (error) {
+      observerStats.processingErrors++;
+      console.error('Error in ultra-robust mutation observer:', error);
+    }
+  });
+
+  // Observe with comprehensive settings
+  mutationObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'style', 'hidden', 'data-kalshi-ao', 'data-kalshi-ao-odds'],
+    characterData: true
+  });
+  
+  console.log('🛡️ Ultra-robust mutation observer started');
+}
+
+/**
+ * Enhanced debounced processing with protection
+ */
+const debouncedProcessPageUltraRobust = debounce(() => {
+  try {
+    console.log('🔄 Ultra-robust processing triggered');
+    
+    // Run standard processing
+    processPage();
+    
+    // Start protection system if not already active (DISABLED - testing)
+    // if (!protectionSystem.isActive) {
+    //   startProtectionSystem();
+    // }
+    
+    // Run immediate protection check
+    setTimeout(() => {
+      runProtectionCheck();
+    }, 500);
+    
+  } catch (error) {
+    console.error('Error in ultra-robust processing:', error);
+  }
+}, 300); // Increased debounce time to reduce flicker
+
+// Replace the standard debounced function with ultra-robust version
+const originalDebouncedProcessPage = debouncedProcessPage;
+debouncedProcessPage = debouncedProcessPageUltraRobust;
+
+// Initialize ultra-robust system when extension loads
+if (shouldActivateExtension()) {
+  console.log('🛡️ Initializing ultra-robust protection system');
+  
+  // Replace standard mutation observer with ultra-robust version
+  setupUltraRobustMutationObserver();
+  
+  // Start protection system (DISABLED - testing if it causes conflicts)
+  // startProtectionSystem();
+  
+  // Run initial processing with protection
+  setTimeout(() => {
+    debouncedProcessPageUltraRobust();
+  }, 1000);
 }
 
 } // End of shouldActivateExtensionEarly() check

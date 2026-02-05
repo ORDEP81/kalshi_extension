@@ -469,11 +469,11 @@ const KalshiLogger = {
         processedNodesCount: processedNodes ? 'WeakSet (cannot count)' : 0,
         observerActive: !!mutationObserver,
         ticketState: ticketState,
-        helperPanelState: {
+        helperPanelState: typeof helperPanelState !== 'undefined' ? {
           isVisible: helperPanelState.isVisible,
           hasCurrentOdds: !!helperPanelState.currentOdds,
           hasCurrentSide: !!helperPanelState.currentSide
-        }
+        } : { error: 'helperPanelState not initialized' }
       }
     };
   },
@@ -578,6 +578,42 @@ let observerStats = {
   mutationsProcessed: 0,
   lastProcessTime: 0,
   processingErrors: 0
+};
+
+// Helper panel state (was missing - causing ReferenceError)
+let helperPanelState = {
+  isVisible: false,
+  panelElement: null,
+  currentOdds: null,
+  currentSide: null,
+  suggestedPrice: null,
+  afterFeeOdds: null,
+  lastTicketData: null,
+  inputChangeTimer: null,
+  recalculateTimer: null
+};
+
+// Ticket state (was missing - causing ReferenceError)
+let ticketState = {
+  isOpen: false,
+  ticketElement: null,
+  ticketObserver: null,
+  lastTicketHash: null
+};
+
+// Fallback fee detection state (was missing - causing ReferenceError)
+let fallbackFeeDetectionState = {
+  isUsingFallback: false,
+  fallbackDetectionHistory: [],
+  lastFallbackDetection: null,
+  fallbackUsageCount: 0,
+  fallbackReasons: [],
+  ticketFeeFailureCount: 0,
+  estimationAccuracy: {
+    totalEstimations: 0,
+    accurateEstimations: 0,
+    averageError: 0
+  }
 };
 
 /**
@@ -1864,12 +1900,12 @@ const KalshiDebugger = {
         hasElement: !!ticketState.ticketElement,
         lastHash: ticketState.lastTicketHash
       },
-      helperPanelState: {
+      helperPanelState: typeof helperPanelState !== 'undefined' ? {
         isVisible: helperPanelState.isVisible,
         hasPanel: !!helperPanelState.panelElement,
         currentOdds: helperPanelState.currentOdds,
         currentSide: helperPanelState.currentSide
-      },
+      } : { error: 'helperPanelState not initialized' },
       processedNodes: 'WeakSet (cannot inspect)',
       mutationObserver: !!mutationObserver
     };
@@ -4891,8 +4927,8 @@ async function init() {
   setupMutationObserver();
   setupHelperPanelPositioning();
   
-  // Set up periodic check to ensure odds stay visible
-  setupPeriodicOddsCheck();
+  // Set up periodic check to ensure odds stay visible (DISABLED - was causing odds to disappear)
+  // setupPeriodicOddsCheck();
   
   // Set up mouse interaction monitoring
   setupMouseInteractionMonitoring();
@@ -5002,8 +5038,8 @@ function setupMouseInteractionMonitoring() {
   
   mouseEvents.forEach(eventType => {
     document.addEventListener(eventType, (event) => {
-      // Skip if not on Kalshi content areas
-      if (!event.target.closest('body')) return;
+      // Skip if not on Kalshi content areas - check if target is an element first
+      if (!event.target || typeof event.target.closest !== 'function' || !event.target.closest('body')) return;
       
       interactionCount++;
       
@@ -5388,7 +5424,7 @@ function debouncedProcessPage() {
       console.error('Error in debounced page processing:', error);
       observerStats.processingErrors++;
     }
-  }, 50); // Reduced debounce time for faster response
+  }, 200); // Increased debounce time to reduce flicker
 }
 
 /**
@@ -5472,8 +5508,15 @@ async function processPage() {
     const startTime = performance.now();
     console.log('Processing page with settings:', settings);
     
-    // Clean up any orphaned odds displays first
-    cleanupOrphanedOdds();
+    // DISABLED - cleanup was too aggressive and removing odds immediately after adding them
+    // This was causing the "odds disappearing after 10 seconds" issue
+    // Only clean up orphaned odds occasionally to prevent aggressive removal
+    // during dynamic content loading
+    // if (!processPage.lastCleanup || Date.now() - processPage.lastCleanup > 5000) {
+    //   console.log('Running periodic orphaned odds cleanup');
+    //   cleanupOrphanedOdds();
+    //   processPage.lastCleanup = Date.now();
+    // }
     
     processOddsNodes();
     // await processOrderTicket(); // Disabled - helper panel functionality removed
@@ -5503,6 +5546,7 @@ async function processPage() {
 
 /**
  * Clean up orphaned odds displays (odds without corresponding probability nodes)
+ * Made less aggressive to prevent premature removal during dynamic content loading
  */
 function cleanupOrphanedOdds() {
   const existingOdds = document.querySelectorAll('[data-kalshi-ao-odds]');
@@ -5510,17 +5554,39 @@ function cleanupOrphanedOdds() {
     // Check if the corresponding probability node still exists and is visible
     const parentContainer = oddsElement.closest('[data-kalshi-ao]');
     if (!parentContainer || !document.contains(parentContainer)) {
-      // Remove orphaned odds display
+      // Only remove if parent is completely gone from DOM
+      console.log('Removing orphaned odds - parent container not found');
       oddsElement.remove();
       return;
     }
     
-    // Check if the probability text is still valid
+    // More lenient check - only remove if parent is clearly invalid
+    // Don't remove during temporary content loading states
+    const parentStyle = window.getComputedStyle(parentContainer);
+    const isParentHidden = parentStyle.display === 'none' || parentStyle.visibility === 'hidden';
+    
+    if (isParentHidden) {
+      // Parent is hidden, but don't remove odds yet - might be temporary
+      console.log('Parent container hidden, keeping odds for now');
+      return;
+    }
+    
+    // Check if the probability text is still valid, but be more forgiving
     const probabilityText = getProbabilityTextFromContainer(parentContainer);
     if (!probabilityText) {
-      // Remove odds if probability text is no longer found
-      oddsElement.remove();
-      parentContainer.removeAttribute('data-kalshi-ao');
+      // Double-check by looking for any percentage or price text in the container
+      const containerText = parentContainer.textContent || '';
+      const hasPercentage = /\b\d{1,3}%\b/.test(containerText);
+      const hasPrice = /\$\d+\.\d{2}/.test(containerText);
+      
+      if (!hasPercentage && !hasPrice) {
+        // Only remove if we're really sure there's no relevant content
+        console.log('Removing odds - no probability content found after double-check');
+        oddsElement.remove();
+        parentContainer.removeAttribute('data-kalshi-ao');
+      } else {
+        console.log('Keeping odds - found percentage or price content in container');
+      }
     }
   });
 }
@@ -5795,6 +5861,30 @@ function clearHelperPanelData() {
     console.warn('Error clearing helper panel data:', error.message);
   }
 }
+function clearOrphanedOdds() {
+  // Ultra-robust version: Only remove odds elements that are truly orphaned
+  // but protect against aggressive removal
+  const existingOdds = document.querySelectorAll('[data-kalshi-ao-odds]');
+  existingOdds.forEach(element => {
+    const parent = element.parentElement;
+    
+    // Remove if parent doesn't exist or is not in document
+    if (!parent || !document.contains(parent)) {
+      element.remove();
+      return;
+    }
+    
+    // Remove if parent no longer has the processed marker
+    if (!parent.hasAttribute('data-kalshi-ao')) {
+      element.remove();
+      return;
+    }
+    
+    // Keep the odds element - it's still valid and protect it
+    protectOddsElement(element);
+  });
+}
+
 function clearExistingOdds() {
   // Only remove odds elements that are truly orphaned (parent no longer exists)
   const existingOdds = document.querySelectorAll('[data-kalshi-ao-odds]');
@@ -5851,8 +5941,8 @@ function processOddsNodes() {
   console.log('Processing odds nodes with displayMode:', settings.displayMode, 'effective:', effectiveMode);
   console.log('Current URL:', window.location.href);
   
-  // Clear existing odds displays first
-  clearExistingOdds();
+  // Only clear orphaned odds, don't clear all odds
+  clearOrphanedOdds();
   
   // Show odds for all non-percent modes
   if (effectiveMode === 'percent') {
@@ -6018,9 +6108,9 @@ function findStableContainer(element) {
       // Common container patterns (avoid overly specific selectors)
       if (tagName === 'tr' || 
           tagName === 'li' || 
-          classNameStr.includes('row') || 
-          classNameStr.includes('item') ||
-          classNameStr.includes('card') ||
+          (classNameStr && classNameStr.includes('row')) || 
+          (classNameStr && classNameStr.includes('item')) ||
+          (classNameStr && classNameStr.includes('card')) ||
           current.getAttribute('role') === 'row') {
         return current;
       }
